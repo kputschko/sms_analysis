@@ -12,3 +12,4 @@ The app exports the SMS messages in XML format. This is my starting point.  I ha
 I am working on building a Shiny Dashboard or an R Markdown Flexdashboard to allow a user to dig through the results.
 
 There currently is no use of text analysis in this project.  
+TEST LINES
