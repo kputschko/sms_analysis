@@ -13,5 +13,4 @@ There currently is no text analysis in this project.
 
 I am working on building an R Markdown Flexdashboard to allow a user to dig through the results.
 
-![](https://github.com/kputschko/sms_analysis/blob/master/docs/dashboard.PNG)
-
+![](dashboard.PNG)
