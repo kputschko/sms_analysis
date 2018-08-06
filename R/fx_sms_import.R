@@ -1,23 +1,26 @@
 # SMS Analysis - Raw Data Prep --------------------------------------------
 
-
 # HEY FUTURE KP, THE DATA QUALITY CHECK SECTION IS A MESS
 # IT MOSTLY WORKS, BUT MAN IS IT NUTS
 
+
 # Define Function ---------------------------------------------------------
 
-fx_sms_import <- function(xml_path, master_date) {
+fx_sms_import <- function(xml_path, prior_master_date) {
 
 
   # Environment -------------------------------------------------------------
 
-  pacman::p_load(tidyverse, anytime, lubridate, foreach, xml2, magrittr)
+  pacman::p_load(dplyr, tidyr, tibble, tidyr, purrr, rlang, readr, lubridate,
+                 anytime, foreach, xml2, magrittr)
+
+  # pacman::p_load(tidyverse, anytime, lubridate, foreach, xml2, magrittr)
 
 
 
   # Import Data -------------------------------------------------------------
 
-  data_sms_old <- read_rds(str_c("data/", master_date, "_master.rds"))
+  data_sms_old <- read_rds(str_c("data/", prior_master_date, "_master.rds"))
   data_xml_raw <- read_xml(xml_path, options = "HUGE")
 
 
@@ -310,16 +313,8 @@ fx_sms_import <- function(xml_path, master_date) {
 
   # End Function ------------------------------------------------------------
 
-  print(str_glue("SMS master data output at `data/{export_filename}_master.rds`"))
+  inform(str_glue("SMS master data output at `data/{export_filename}_master.rds`"))
+
 
 
 }
-
-
-
-
-# Test Function -----------------------------------------------------------
-
-# fx_sms_import(
-#   xml_path = "C:/Users/exp01754/Downloads/sms-2018-05-31 09-53-59.xml",
-#   master_date = "2018-05-08")

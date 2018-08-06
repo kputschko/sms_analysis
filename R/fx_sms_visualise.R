@@ -49,7 +49,7 @@ fx_sms_visualise <- function(master_date) {
   # Master ------------------------------------------------------------------
 
 
-  # // Length Difference -------------------------------------------------------
+  # // Length Difference ----------------------------------------------------
 
   plot_data_dif_length <-
     data_sms_summaries %>%
@@ -86,7 +86,7 @@ fx_sms_visualise <- function(master_date) {
 
 
 
-  # // Contact Timeline --------------------------------------------------------
+  # // Contact Timeline -----------------------------------------------------
 
   plot_data_timeline <-
     data_sms_summaries %>%
@@ -117,7 +117,7 @@ fx_sms_visualise <- function(master_date) {
 
 
 
-  # // Contact Scatter -------------------------------------------------------
+  # // Contact Scatter ------------------------------------------------------
 
   export_master_plot_scatter <-
     data_sms_summaries %>%
@@ -527,12 +527,6 @@ fx_sms_visualise <- function(master_date) {
 
   # End Function ------------------------------------------------------------
 
-  print(str_glue("SMS visual data output at `data/{master_date}_visuals.rds`"))
+  inform(str_glue("SMS visual data output at `data/{master_date}_visuals.rds`"))
 
 }
-
-
-
-# Test Function -----------------------------------------------------------
-
-# fx_sms_visualise(master_date = "2018-05-08")

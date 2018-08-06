@@ -218,13 +218,7 @@ fx_sms_prepare <- function(master_date, use_anon = TRUE) {
 
   # End Function ------------------------------------------------------------
 
-  print(str_glue("SMS summary data output at `data/{master_date}_summary.rds`"))
+  inform(str_glue("SMS summary data output at `data/{master_date}_summary.rds`"))
 
 }
 
-
-# Test Function -----------------------------------------------------------
-
-# fx_sms_prepare(
-#   master_date = "2018-05-31",
-#   use_anon = TRUE)
