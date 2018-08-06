@@ -1,0 +1,208 @@
+---
+title: "Message Analysis"
+output: flexdashboard::flex_dashboard
+runtime: shiny
+---
+
+```{r global, include=FALSE}
+
+# We want to start with the raw XML file, and run each script
+# We do not want to run each script every time this script is run
+# So we must check the output of each script along the way
+
+# ---
+# title: "SMS Analysis"
+# output: 
+#   flexdashboard::flex_dashboard:
+#     orientation: rows
+#     vertical_layout: scroll
+#     runtime: shiny
+# ---
+
+
+# === Set Parameter ===
+file_backup_date <- "2018-08-06"
+
+
+# === Packages ===
+pacman::p_load(tidyverse, flexdashboard, rlang, shiny)
+
+
+# === Run Process ===
+
+# .check_list <- 
+#   tibble(Data = c("master", "summary", "visuals"),
+#          Script = c("SMS - 01 - Import Data.R",
+#                     "SMS - 02 - Manipulate Data.R",
+#                     "SMS - 03 - Visualize Data.R")) %>% 
+#   mutate(Exists = 
+#            map_lgl(Data, 
+#                    ~ str_glue("data/{file_backup_date}_{.x}.rds") %>% 
+#                      file.exists())) 
+# 
+# pwalk(.l = lst(.check_list$Exists, 
+#                .check_list$Script),
+#       .f = if (is_false(..1)) {
+#         
+#         .process_in_flexdashboard <- TRUE
+#         source(..2)
+#         
+#         })
+
+
+
+# === Import ===
+
+data_sms_visuals <- 
+  str_glue("data/{file_backup_date}_visuals.rds") %>% 
+  read_rds()
+
+
+data_sms_summaries <- 
+  str_glue("data/{file_backup_date}_summary.rds") %>% 
+  read_rds() %>% 
+  spread(name, value)
+
+
+.plot_colors <- data_sms_visuals$plot_colors[[1]]
+
+
+```
+
+Parameter Selection {.sidebar data-width=200}
+========================================================================
+
+```{r}
+
+data_sms_visuals %>% 
+  pull(list_top_contacts) %>%
+  flatten_chr() %>% 
+  union("<None>") %>% 
+  sort() %>% 
+  selectInput(inputId = "select_contact",
+              label = "Select Contact",
+              selected = "<None>",
+              choices = .)
+
+```
+
+
+Message Summary
+=======================================================================
+
+Row
+-----------------------------------------------------------------------
+
+### Message Summary
+
+```{r}
+
+renderTable({
+
+  data_sms_summaries$data_sms_type[[1]]
+  
+})
+
+```
+
+### Contact Summary
+
+```{r}
+renderTable({
+  
+  data_sms_summaries$data_sms_summary[[1]]
+  
+})
+```
+
+
+
+Row
+-----------------------------------------------------------------------
+ 
+### Daily Message Length
+
+```{r}
+
+renderPlot({
+
+  .plot_contact <- input$select_contact
+  
+  if (.plot_contact == "<None>") {
+
+    data_sms_visuals$master_plot_scatter[[1]] + ggtitle(label = NULL)
+
+  } else {
+
+    data_sms_visuals$master_plot_scatter[[1]] +
+      geom_point(data = . %>% filter(Contact == .plot_contact), color = "red", alpha = 0.30) +
+      geom_smooth(data = . %>% filter(Contact == .plot_contact), span = 0.45, se = FALSE, color = "black") +
+      ggtitle(label = str_c("Contact:", .plot_contact, sep = " "))
+
+  }
+
+})
+
+```
+
+### Contact Timeline
+
+```{r}
+
+renderPlot({
+  
+  data_sms_visuals$master_plot_timeline[[1]] + 
+    ggtitle(label = NULL)
+  
+})
+
+```
+
+
+Row
+-----------------------------------------------------------------------
+
+
+### Total Message Length
+
+```{r}
+renderPlot({
+
+    data_sms_visuals$master_plot_top_bars[[1]] +
+    ggtitle(label = NULL)
+  
+})
+```
+
+### Proportion of Message Length
+
+```{r}
+renderPlot({
+
+    data_sms_visuals$master_plot_top_bars_prop[[1]] +
+    ggtitle(label = NULL)
+
+})
+```
+
+
+### Mean Difference in Message Length
+
+```{r}
+
+renderPlot({
+  
+  data_sms_visuals$master_plot_dif_length[[1]] + 
+    ggtitle(label = NULL) +
+    labs(y = NULL)
+  
+})
+  
+```
+
+
+Messages Received
+==========================================================================
+
+Messages Sent
+==========================================================================

@@ -9,6 +9,9 @@ The app exports the SMS messages in XML format. This is my starting point.  I ha
 2. Summarizing the data in many formats and contexts.
 3. Visualizing the summarized data.  
 
-I am working on building a Shiny Dashboard or an R Markdown Flexdashboard to allow a user to dig through the results.
+There currently is no text analysis in this project.
 
-There currently is no use of text analysis in this project.  
+I am working on building an R Markdown Flexdashboard to allow a user to dig through the results.
+
+![](docs/dashboard.png)
+

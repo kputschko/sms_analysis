@@ -11,10 +11,7 @@ fx_sms_import <- function(xml_path, prior_master_date) {
 
   # Environment -------------------------------------------------------------
 
-  pacman::p_load(dplyr, tidyr, tibble, tidyr, purrr, rlang, readr, lubridate,
-                 anytime, foreach, xml2, magrittr)
-
-  # pacman::p_load(tidyverse, anytime, lubridate, foreach, xml2, magrittr)
+  pacman::p_load(tidyverse, anytime, lubridate, foreach, xml2, magrittr, rlang)
 
 
 
@@ -280,17 +277,21 @@ fx_sms_import <- function(xml_path, prior_master_date) {
 
   # Removing Identification -------------------------------------------------
 
-  Anon <- read_csv("data/anon_id.csv")
+  Anon <- read_csv("data/anon_id.csv",
+                   col_types = cols(
+                     ID = col_integer(),
+                     Landform = col_character()
+                   ))
 
   data_anon_id <-
     data_sms_master_clean %>%
     arrange(DateTime) %>%
     distinct(Contact) %>%
     rowid_to_column("ID") %>%
-    left_join(Anon)
+    left_join(Anon, by = "ID")
 
   data_sms_anon <-
-    left_join(data_sms_master_clean, data_anon_id) %>%
+    left_join(data_sms_master_clean, data_anon_id, by = "Contact") %>%
     select(Contact = Landform, DateTime, MessageType, Message, MessageLength)
 
 
@@ -313,8 +314,9 @@ fx_sms_import <- function(xml_path, prior_master_date) {
 
   # End Function ------------------------------------------------------------
 
-  inform(str_glue("SMS master data output at `data/{export_filename}_master.rds`"))
-
-
+  "We have added {nrow(data_sms_new)} new rows to the master database at `data/{export_filename}_master.rds`.
+  These messages range from {min(data_sms_new$DateTime)} to {max(data_sms_new$DateTime)}" %>%
+    str_glue() %>%
+    inform()
 
 }

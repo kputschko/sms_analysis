@@ -9,8 +9,9 @@ fx_sms_visualise <- function(master_date) {
 
   # Configure Environment ---------------------------------------------------
 
+  source('R/fx_utility_functions.R')
+
   pacman::p_load(tidyverse, scales)
-  source('fx_utility_functions.R')
 
   .plot_colors <- list(me = "#ef8a62", them = "#67a9cf")
 
@@ -26,10 +27,15 @@ fx_sms_visualise <- function(master_date) {
 
   # Import Data -------------------------------------------------------------
 
-  data_sms_summaries <-
-    str_glue("data/{master_date}_summary.rds") %>%
-    read_rds() %>%
-    deframe()
+  if (str_glue("{master_date}_summary.rds") %in% dir(path = "data/")) {
+
+    data_sms_summaries <-
+      str_glue("data/{master_date}_summary.rds") %>%
+      read_rds() %>%
+      deframe()
+
+
+  } else {abort("You must run fx_sms_prepare first!")}
 
 
 
@@ -364,7 +370,7 @@ fx_sms_visualise <- function(master_date) {
   export_contact_nest <-
     ls(pattern = "single_") %>%
     mget(inherits = TRUE) %>%
-    reduce(left_join)
+    reduce(left_join, by = "Contact")
 
 
 

@@ -13,8 +13,8 @@ fx_sms_prepare <- function(master_date, use_anon = TRUE) {
 
   path_import <-
     case_when(
-      is_true(use_anon) ~ str_glue("data/{master_date}_master_anon.rds") %>% as_character(),
-      is_false(use_anon) ~ str_glue("data/{master_date}_master.rds")%>% as_character())
+      is_true(use_anon) ~ str_glue("data/{master_date}_master_anon.rds"),
+      is_false(use_anon) ~ str_glue("data/{master_date}_master.rds"))
 
 
   data_sms_master <- read_rds(path_import)
