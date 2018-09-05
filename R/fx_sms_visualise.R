@@ -11,7 +11,7 @@ fx_sms_visualise <- function(master_date) {
 
   source('R/fx_utility_functions.R')
 
-  pacman::p_load(tidyverse, scales)
+  pacman::p_load(tidyverse, scales, plotly)
 
   .plot_colors <- list(me = "#ef8a62", them = "#67a9cf")
 
@@ -52,7 +52,27 @@ fx_sms_visualise <- function(master_date) {
   # Visuals -----------------------------------------------------------------
 
 
-  # Master ------------------------------------------------------------------
+  # Overview ------------------------------------------------------------------
+
+
+  # // Daily Average Length -------------------------------------------------
+  plot_data_daily_average <-
+    data_sms_period %>%
+    group_by(Day) %>%
+    fx_sms_summary()
+
+  plot_gg_daily_data_average <-
+    plot_data_daily_average %>%
+    ggplot() +
+    aes(x = Day, y = Length_Avg, weight = Message_Count, size = Contact_Count) +
+    geom_point(alpha = 0.10, shape = 15) +
+    geom_smooth(se = FALSE, span = 0.25, color = "red") +
+    labs(x = NULL, y = "Length") +
+    theme_minimal()
+
+  export_overview_plot_daily_average <-
+    plot_gg_daily_data_average %>%
+    ggplotly()
 
 
   # // Length Difference ----------------------------------------------------
@@ -66,7 +86,7 @@ fx_sms_visualise <- function(master_date) {
            color = if_else(mean > 0, "Me", "Them"))
 
 
-  export_master_plot_dif_length <-
+  export_overview_plot_dif_length <-
     plot_data_dif_length %>%
     ggplot(aes(x = Contact)) +
     geom_linerange(aes(ymin = mean - 0.5 * sd,
@@ -104,7 +124,7 @@ fx_sms_visualise <- function(master_date) {
     arrange(Day) %>%
     mutate(Contact = factor(Contact))
 
-  export_master_plot_timeline <-
+  export_overview_plot_timeline <-
     plot_data_timeline %>%
     ggplot(aes(x = Day,
                y = Contact,
@@ -125,7 +145,7 @@ fx_sms_visualise <- function(master_date) {
 
   # // Contact Scatter ------------------------------------------------------
 
-  export_master_plot_scatter <-
+  export_overview_plot_scatter <-
     data_sms_summaries %>%
     pluck("data_period_contact_day") %>%
     group_by(Contact, Day) %>%
@@ -139,11 +159,11 @@ fx_sms_visualise <- function(master_date) {
     scale_y_sqrt() +
     .plot_ggtheme
 
-  export_master_plot_scatter <-
+  export_overview_plot_scatter <-
     data_sms_summaries %>%
     pluck("data_period_contact_day") %>%
     group_by(Contact, Day) %>%
-    summarise(Total_Length = sum(Length_Sum)) %>%
+    summarise(Total_Length = sum(Length_Sum))
 
 
   # === For Interactive Use in Dashboard ===
@@ -153,23 +173,23 @@ fx_sms_visualise <- function(master_date) {
   # .plot_contact <- "Aardvark"
   # .plot_contact <- "Lava Plain"
   #
-  # .plot_master_contact_point <-
+  # .plot_overview_contact_point <-
   #   geom_point(data = . %>% filter(Contact == .plot_contact), color = "red", alpha = 0.30)
   #
-  # .plot_master_contact_smooth <-
+  # .plot_overview_contact_smooth <-
   #   geom_smooth(data = . %>% filter(Contact == .plot_contact), span = 0.45, se = FALSE, color = "black")
   #
   #
   #
   # if (is.null(.plot_contact)) {
   #
-  #   export_master_plot_scatter
+  #   export_overview_plot_scatter
   #
   # } else {
   #
-  #   export_master_plot_scatter +
-  #     .plot_master_contact_point +
-  #     .plot_master_contact_smooth +
+  #   export_overview_plot_scatter +
+  #     .plot_overview_contact_point +
+  #     .plot_overview_contact_smooth +
   #     ggtitle(label = "Message Length by Day",
   #             subtitle = str_c("Contact:", .plot_contact, sep = " "))
   #
@@ -194,7 +214,7 @@ fx_sms_visualise <- function(master_date) {
     ungroup() %>%
     mutate(Contact = Contact %>% factor() %>% fct_inorder())
 
-  export_master_plot_top_bars <-
+  export_overview_plot_top_bars <-
     plot_data_top_bars %>%
     ggplot(aes(x = Contact, y = Length_Sum)) +
     geom_linerange(aes(ymin = 0,
@@ -210,7 +230,7 @@ fx_sms_visualise <- function(master_date) {
     .plot_ggtheme
 
 
-  export_master_plot_top_bars_prop <-
+  export_overview_plot_top_bars_prop <-
     plot_data_top_bars %>%
     ggplot(aes(x = Contact, y = Length_Sum, fill = MessageType)) +
     geom_col(color = "black", position = "fill") +

@@ -125,3 +125,25 @@ p2 %>% ggplotly()
 #   geom_smooth()
 
 stat_sm
+
+
+
+# at 3 --------------------------------------------------------------------
+
+overview <-
+  data_sms_period %>%
+  group_by(Day) %>%
+  fx_sms_summary()
+
+a3 <-
+  overview %>%
+  ggplot() +
+  aes(x = Day, y = Length_Avg, weight = Message_Count, size = Contact_Count) +
+  geom_point(alpha = 0.10, shape = 15) +
+  geom_smooth(se = FALSE, span = 0.25, color = "red") +
+  theme_minimal() +
+  labs(x = NULL, y = "Length", title = "Daily Average Message Length")
+
+test <- a3 %>% ggplotly()
+
+test

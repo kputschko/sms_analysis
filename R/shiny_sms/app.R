@@ -3,7 +3,7 @@
 
 
 # Packages
-pacman::p_load(tidyverse, shiny, shinydashboard, scales)
+pacman::p_load(tidyverse, shiny, shinydashboard, scales, plotly)
 
 
 # Data
@@ -48,7 +48,7 @@ ui <- dashboardPage(
     sidebarMenu(
       menuItem("Overview", tabName = "ui_dashboard", icon = icon("dashboard")),
       menuItem("Contact",  tabName = "ui_contact", icon = icon("dashboard")),
-      menuItem("Sent",     tabName = "ui_sent", icon = icon("dasboard"))
+      menuItem("Sent",     tabName = "ui_sent", icon = icon("dashboard"))
     )
   ),
 
@@ -59,19 +59,24 @@ ui <- dashboardPage(
       tabItem(tabName = "ui_dashboard",
 
               fluidRow(
-                infoBox("Total Contacts",   value = overview$Contact_Count, fill = TRUE, width = 3),
-                infoBox("Total Messages",   value = overview$Message_Count, fill = TRUE, width = 3),
-                infoBox("Total Characters", value = overview$Length_Sum,    fill = TRUE, width = 3)
+                infoBox("Total Contacts",   value = overview$Contact_Count, fill = TRUE),
+                infoBox("Total Messages",   value = overview$Message_Count, fill = TRUE),
+                infoBox("Total Characters", value = overview$Length_Sum,    fill = TRUE)
               ),
 
               fluidRow(
-                infoBox("Earliest Message", value = overview$Date_Min, fill = FALSE, width = 4),
-                infoBox("Latest Message",   value = overview$Date_Max, fill = FALSE, width = 4)
+                infoBox("Earliest Message", value = overview$Date_Min, fill = FALSE, width = 3),
+                infoBox("Latest Message",   value = overview$Date_Max, fill = FALSE, width = 3)
               ),
 
               fluidRow(
-                box(plotOutput("overview_plot"),
-                    title = "Message Length by Day")
+                box(plotlyOutput("overview_daily_average"), title = "Average Message Length by Day")
+              ),
+
+              fluidRow(
+                # box(dataTableOutput("overview_3"), title = "Top Contacts", width = 3),
+                box(tableOutput("overview_3"), title = "Top Contacts"),
+                box(plotOutput("overview_2"), title = "Average Difference in Message Length")
               )
 
 
@@ -90,8 +95,16 @@ ui <- dashboardPage(
 
 server <- function(input, output) {
 
-  output$overview_plot <-
-    renderPlot(data_visuals$master_plot_scatter)
+  output$overview_daily_average <-
+    renderPlotly(data_visuals$overview_plot_daily_average[[1]])
+
+  output$overview_2 <-
+    renderPlot(data_visuals$overview_plot_dif_length[[1]])
+
+  output$overview_3 <-
+    # renderDataTable(data_summary$data_sms_rank %>% filter(Contact %in% data_visuals$list_top_contacts[[1]]))
+    renderTable(data_summary$data_sms_rank %>% filter(Contact %in% data_visuals$list_top_contacts[[1]]))
+
 
 }
 
