@@ -139,12 +139,19 @@ fx_sms_visualise <- function(master_date) {
     scale_y_sqrt() +
     .plot_ggtheme
 
+  export_master_plot_scatter <-
+    data_sms_summaries %>%
+    pluck("data_period_contact_day") %>%
+    group_by(Contact, Day) %>%
+    summarise(Total_Length = sum(Length_Sum)) %>%
+
 
   # === For Interactive Use in Dashboard ===
   # .plot_contact <- NULL
   # .plot_contact <- "Mouse"
   # .plot_contact <- "Bat"
   # .plot_contact <- "Aardvark"
+  # .plot_contact <- "Lava Plain"
   #
   # .plot_master_contact_point <-
   #   geom_point(data = . %>% filter(Contact == .plot_contact), color = "red", alpha = 0.30)
