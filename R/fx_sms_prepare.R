@@ -80,6 +80,7 @@ fx_sms_prepare <- function(master_date, use_anon = TRUE) {
     mutate(Hour = hour(DateTime),
            Day = date(DateTime),
            Weekday = wday(DateTime, label = TRUE, week_start = 1),
+           Week = floor_date(DateTime, unit = "week"),
            Month = floor_date(DateTime, unit = "month") %>% date(),
            Year = floor_date(DateTime, unit = "year") %>% year())
 
@@ -87,6 +88,8 @@ fx_sms_prepare <- function(master_date, use_anon = TRUE) {
   export_data_period_day  <- data_sms_period %>% group_by(Day, MessageType) %>% fx_sms_summary()
   export_data_period_contact_day  <- data_sms_period %>% group_by(Contact, Day, MessageType) %>% fx_sms_summary()
 
+  export_data_period_week <- data_sms_period %>% group_by(Week, MessageType) %>% fx_sms_summary()
+  export_data_period_contact_week <- data_sms_period %>% group_by(Contact, Week, MessageType) %>% fx_sms_summary()
 
   # Are these needed?
   # export_data_period_hour <- data_sms_period %>% group_by(Hour) %>% fx_sms_summary()
