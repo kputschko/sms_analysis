@@ -147,3 +147,61 @@ a3 <-
 test <- a3 %>% ggplotly()
 
 test
+
+
+# ridgeline ---------------------------------------------------------------
+
+install.packages("ggridges")
+library(ggridges)
+
+ttt <-
+  data_sms_dif %>%
+  select(Contact, Day, MessageType, Length_Sum) %>%
+  spread(MessageType, Length_Sum) %>%
+  replace_na(replace = list(Received = 0, Sent = 0)) %>%
+  mutate(Length_Difference = Received - Sent) %>%
+  filter(Contact %in% export_list_top_contacts) %>%
+  group_by(Contact) %>%
+  summarise(quantiles = list(quantile(Length_Difference) %>% enframe() %>% spread(name, value)),
+            Days = n()) %>%
+  unnest(quantiles) %>%
+  rename(Min = "0%", Max = "100%", Q1 = "25%", Median = "50%", Q3 = "75%") %>%
+  arrange(Median) %>%
+  mutate(Color = if_else(Median > 0, "Me", "Them"),
+         Contact = fct_inorder(Contact)) %>%
+
+  ggplot() +
+  aes(x = Contact) +
+  geom_linerange(aes(ymin = Q1,
+                     ymax = Q3,
+                     color = Color)) +
+  geom_point(aes(y = Median,
+                 size = Days,
+                 fill = Color),
+             color = "black",
+             shape = 21) +
+  geom_hline(aes(yintercept = 0)) +
+  labs(x = NULL,
+       y = "Median Length Difference",
+       # fill = "Whose Messages\nAre Longer?",
+       # size = "Days of Contact",
+       color = NULL) +
+  guides(color = FALSE, fill = FALSE, size = FALSE) +
+  coord_flip() +
+  scale_fill_manual(values = c(.plot_colors$me, .plot_colors$them)) +
+  scale_color_manual(values = c(.plot_colors$me, .plot_colors$them)) +
+  .plot_ggtheme
+
+ttt %>% ggplotly()
+
+
+  ggplot() +
+
+  # aes(x = Length_Difference, y = Contact, fill = ..x..) +
+  # geom_density_ridges_gradient(rel_min_height = 0.0001) +
+  # scale_fill_viridis_c() +
+
+  aes(x = Length_Difference, y = Contact) +
+  geom_density_ridges(rel_min_height = 0.0001, alpha = 0.25, fill = "blue", quantile_lines = TRUE, quantiles = 2) +
+  geom_vline(xintercept = 0, color = "black") +
+  .plot_ggtheme

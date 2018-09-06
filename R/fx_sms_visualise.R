@@ -81,34 +81,62 @@ fx_sms_visualise <- function(master_date) {
     data_sms_summaries %>%
     pluck("data_sms_dif_length") %>%
     filter(Contact %in% export_list_top_contacts) %>%
-    arrange(mean) %>%
-    mutate(Contact = Contact %>% as_factor(),
-           color = if_else(mean > 0, "Me", "Them"))
+    arrange(Median) %>%
+    mutate(Contact = fct_inorder(Contact),
+           `Longer Messages` = if_else(Median > 0, "Mine", "Theirs"))
 
 
-  export_overview_plot_dif_length <-
+  plot_gg_dif_length <-
     plot_data_dif_length %>%
-    ggplot(aes(x = Contact)) +
-    geom_linerange(aes(ymin = mean - 0.5 * sd,
-                       ymax = mean + 0.5 * sd,
-                       color = color)) +
-    geom_point(aes(y = mean,
-                   size = days,
-                   fill = color),
+    ggplot() +
+    aes(x = Contact) +
+    geom_linerange(aes(ymin = Q1,
+                       ymax = Q3,
+                       color = `Longer Messages`)) +
+    geom_point(aes(y = Median,
+                   size = `Days of Contact`,
+                   fill = `Longer Messages`),
                color = "black",
                shape = 21) +
     geom_hline(aes(yintercept = 0)) +
     labs(x = NULL,
-         y = "Mean Difference in Message Length",
-         fill = "Whose Messages\nAre Longer?",
-         color = NULL,
-         size = "Days of Contact") +
-    guides(color = FALSE) +
+         y = "Median Difference in Character Length",
+         # fill = "Whose Messages\nAre Longer?",
+         # size = "Days of Contact",
+         color = NULL) +
+    guides(color = FALSE, fill = FALSE, size = FALSE) +
     coord_flip() +
     scale_fill_manual(values = c(.plot_colors$me, .plot_colors$them)) +
     scale_color_manual(values = c(.plot_colors$me, .plot_colors$them)) +
-    ggtitle("Mean Difference in Message Length") +
     .plot_ggtheme
+
+
+  export_overview_plot_dif_length <-
+    plot_gg_dif_length %>%
+    ggplotly()
+
+  # export_overview_plot_dif_length <-
+  #   plot_data_dif_length %>%
+  #   ggplot(aes(x = Contact)) +
+  #   geom_linerange(aes(ymin = mean - 0.5 * sd,
+  #                      ymax = mean + 0.5 * sd,
+  #                      color = color)) +
+  #   geom_point(aes(y = mean,
+  #                  size = days,
+  #                  fill = color),
+  #              color = "black",
+  #              shape = 21) +
+  #   geom_hline(aes(yintercept = 0)) +
+  #   labs(x = NULL,
+  #        y = "Average Length Difference",
+  #        # fill = "Whose Messages\nAre Longer?",
+  #        # size = "Days of Contact",
+  #        color = NULL) +
+  #   guides(color = FALSE, fill = FALSE, size = FALSE) +
+  #   coord_flip() +
+  #   scale_fill_manual(values = c(.plot_colors$me, .plot_colors$them)) +
+  #   scale_color_manual(values = c(.plot_colors$me, .plot_colors$them)) +
+  #   .plot_ggtheme
 
 
 

@@ -3,7 +3,7 @@
 
 
 # Packages
-pacman::p_load(tidyverse, shiny, shinydashboard, scales, plotly)
+pacman::p_load(tidyverse, shiny, shinydashboard, scales, plotly, DT)
 
 
 # Data
@@ -65,18 +65,17 @@ ui <- dashboardPage(
               ),
 
               fluidRow(
-                infoBox("Earliest Message", value = overview$Date_Min, fill = FALSE, width = 3),
-                infoBox("Latest Message",   value = overview$Date_Max, fill = FALSE, width = 3)
+                infoBox("Earliest Message", value = overview$Date_Min, fill = FALSE, width = 6),
+                infoBox("Latest Message",   value = overview$Date_Max, fill = FALSE, width = 6)
               ),
 
               fluidRow(
-                box(plotlyOutput("overview_daily_average"), title = "Average Message Length by Day")
+                box(plotlyOutput("overview_daily_average"), title = "Average Message Length by Day", width = 12)
               ),
 
               fluidRow(
-                # box(dataTableOutput("overview_3"), title = "Top Contacts", width = 3),
-                box(tableOutput("overview_3"), title = "Top Contacts"),
-                box(plotOutput("overview_2"), title = "Average Difference in Message Length")
+                box(DTOutput("overview_top_contacts"), title = "Top 25 Contacts", width = 4, height = 650),
+                box(plotlyOutput("overview_length_difference"), title = "Whose Messages are Longer?", width = 8, height = 650)
               )
 
 
@@ -98,12 +97,23 @@ server <- function(input, output) {
   output$overview_daily_average <-
     renderPlotly(data_visuals$overview_plot_daily_average[[1]])
 
-  output$overview_2 <-
-    renderPlot(data_visuals$overview_plot_dif_length[[1]])
+  output$overview_length_difference <-
+    renderPlotly(data_visuals$overview_plot_dif_length[[1]] %>% layout(height = 600))
 
-  output$overview_3 <-
-    # renderDataTable(data_summary$data_sms_rank %>% filter(Contact %in% data_visuals$list_top_contacts[[1]]))
-    renderTable(data_summary$data_sms_rank %>% filter(Contact %in% data_visuals$list_top_contacts[[1]]))
+  output$overview_top_contacts <-
+    renderDT(expr = data_summary$data_sms_rank %>%
+               filter(Contact %in% data_visuals$list_top_contacts[[1]]) %>%
+               arrange(-Length_Sum) %>%
+               select(-contains("Rank")) %>%
+               datatable(
+                 height = 600,
+                 extensions = c('Scroller'),
+                 options = list(dom = 't',
+                                scrollY = 550,
+                                scroller = TRUE,
+                                scrollX = TRUE)) %>%
+               formatRound(2:3, digits = 0) %>%
+               formatRound(c(4, 6), digits = 2))
 
 
 }

@@ -181,6 +181,17 @@ fx_sms_prepare <- function(master_date, use_anon = TRUE) {
     ungroup() %>%
     filter(!str_detect(Contact, ","))
 
+  # export_data_sms_dif_length <-
+  #   data_sms_dif %>%
+  #   select(Contact, Day, MessageType, Length_Sum) %>%
+  #   spread(MessageType, Length_Sum) %>%
+  #   replace_na(replace = list(Received = 0, Sent = 0)) %>%
+  #   mutate(Length_Difference = Received - Sent) %>%
+  #   group_by(Contact) %>%
+  #   summarise_at(.vars = vars(Length_Difference),
+  #                .funs = c(days = "length", "median", "mean", "sd", "min", "max"))
+
+
   export_data_sms_dif_length <-
     data_sms_dif %>%
     select(Contact, Day, MessageType, Length_Sum) %>%
@@ -188,20 +199,10 @@ fx_sms_prepare <- function(master_date, use_anon = TRUE) {
     replace_na(replace = list(Received = 0, Sent = 0)) %>%
     mutate(Length_Difference = Received - Sent) %>%
     group_by(Contact) %>%
-    summarise_at(.vars = vars(Length_Difference),
-                 .funs = c(days = "length", "median", "mean", "sd", "min", "max"))
-
-
-  # export_data_sms_dif_count <-
-  #   data_sms_dif %>%
-  #   select(Contact, Day, MessageType, Message_Count) %>%
-  #   spread(MessageType, Message_Count) %>%
-  #   replace_na(replace = list(Received = 0, Sent = 0)) %>%
-  #   mutate(Count_Difference = Received - Sent) %>%
-  #   group_by(Contact) %>%
-  #   summarise_at(.vars = vars(Count_Difference),
-  #                .funs = c(days = "length", "median", "mean", "sd", "min", "max"))
-
+    summarise(quantiles = list(quantile(Length_Difference) %>% enframe() %>% spread(name, value)),
+              `Days of Contact` = n()) %>%
+    unnest(quantiles) %>%
+    rename(Min = "0%", Max = "100%", Q1 = "25%", Median = "50%", Q3 = "75%")
 
 
 
