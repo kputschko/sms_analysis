@@ -10,8 +10,9 @@ pacman::p_load(tidyverse, rlang, shiny, shinydashboard, scales, plotly, DT)
 source("R/fx_sms_read_xml.R")
 source("R/fx_sms_sumarise.R")
 source("R/fx_sms_append.R")
+source("R/fx_sms_prepare.R")
 
-str_glue("Starting Shiny App at {Sys.time()}") %>% inform()
+
 
 # |- Helpers ----
 fx_sms_app_render_dt <- function(data, yheight = 300) {
@@ -25,34 +26,14 @@ fx_sms_app_render_dt <- function(data, yheight = 300) {
 
 }
 
-
-# Data
-# filepath_date <- "2018-08-06"
-
-# When running in Shiny
-# data_summary <- str_glue("data/{filepath_date}_summary.rds") %>% read_rds() %>% deframe()
-# data_visuals <- str_glue("data/{filepath_date}_visuals.rds") %>% read_rds()
-
-# When running in rstudio
-# data_summary <- str_glue("data/{filepath_date}_summary.rds") %>% read_rds() %>% deframe()
-# data_visuals <- str_glue("data/{filepath_date}_visuals.rds") %>% read_rds()
-
-
-# Prepare Data ------------------------------------------------------------
-
-# overview <-
-#   data_summary %>%
-#   pluck("data_sms_type") %>%
-#   filter(MessageType == "All") %>%
-#   select(Contact_Count:Length_Sum) %>%
-#   mutate_all(comma) %>%
-#   bind_cols(
-#     data_summary %>%
-#       pluck("data_period_contact_day") %>%
-#       ungroup() %>%
-#       summarise_at(vars(Day), c(Date_Min = "min", Date_Max = "max"))
-#   )
-
+.plot_theme <-
+  theme_minimal() +
+  theme(strip.text.y = element_text(angle = 0, face = "bold"),
+        strip.text.x = element_text(face = "bold"),
+        panel.background = element_rect(color = "gray"),
+        panel.grid.major.x = element_line(color = "gray", linetype = 3),
+        panel.grid.minor.x = element_line(color = "gray", linetype = 3),
+        legend.title.align = 0.5)
 
 
 # User Interface ----------------------------------------------------------
@@ -80,7 +61,7 @@ ui <- dashboardPage(
 
               fluidRow(
 
-                box(width = 3,
+                box(width = 3, status = "primary",
                     uiOutput("overview_path_import_master"),
                     actionButton("overview_action_import_master", "Load Database"),
                     hr(),
@@ -99,6 +80,8 @@ ui <- dashboardPage(
 
                 tabBox(width = 9, height = 300,
 
+                       tabPanel("Debug", textOutput("debug")),
+
                        tabPanel("Database Summary",
                                 valueBoxOutput("overview_master_contacts", width = 4),
                                 valueBoxOutput("overview_master_messages", width = 4),
@@ -113,9 +96,19 @@ ui <- dashboardPage(
                                 valueBoxOutput("overview_new_length"),
                                 infoBoxOutput("overview_new_mindate"),
                                 infoBoxOutput("overview_new_maxdate")
-                       ),
-                       tabPanel("Debug", textOutput("debug"))
+                       )
+                )
+              ),
 
+              fluidRow(
+                box(width = 3,
+                    title = "Top 25 Contacts",
+                    DTOutput("overview_top")),
+
+                box(width = 9,
+                    title = "Message Length by Day",
+                    footer = "Color: Contacts per Day - Size: Messages per Day",
+                    plotlyOutput("overview_scatter", height = 400)
                 )
               )
 
@@ -259,9 +252,13 @@ server <- function(input, output) {
 
   # || Anonymous
   data_master_anon <- reactive({
-    if (input$overview_import_anon %>% parse_expr() %>% is_true()) {
+    if (input$overview_import_anon %>% parse_expr() %>% is_false()) {
+      data_master()
+    } else {
 
-      data_anon <- read_csv("data/anon_id.csv", col_types = cols(id = col_integer(), animal = col_character()))
+      data_anon <-
+        read_csv("data/anon_id.csv",
+                 col_types = cols(id = col_integer(), animal = col_character()))
 
       data_master() %>%
         arrange(DateTime) %>%
@@ -270,14 +267,51 @@ server <- function(input, output) {
         left_join(data_anon, by = "id") %>%
         left_join(data_master(), by = "Contact") %>%
         select(Contact = animal, DateTime, MessageType, Message, MessageLength)
-
-    } else {
-
-      data_master()
-
     }
+  })
+
+
+  # |- Data Summaries ----
+  data_summaries <- reactive(
+    data_master_anon() %>%
+      fx_sms_prepare() %>%
+      deframe()
+  )
+
+  output$overview_top <- renderDT(
+    data_summaries() %>%
+      pluck("sms_rank") %>%
+      top_n(n = 25, wt = -Rank_Score) %>%
+      arrange(Rank_Score) %>%
+      select(-Rank_Score) %>%
+      mutate_if(is.numeric, comma) %>%
+      fx_sms_app_render_dt(yheight = 400)
+  )
+
+
+
+
+  # |- Plot Scatter ----
+  output$overview_scatter <- renderPlotly({
+
+    plot_overview_scatter <-
+      data_summaries() %>%
+      pluck("sms_day") %>%
+
+      ggplot() +
+      aes(x = Day, y = Length_Sum, size = Message_Count, color = Contact_Count) +
+      geom_point(alpha = 0.75) +
+      scale_color_viridis_c() +
+      labs(y = NULL,
+           x = NULL,
+           color = NULL,
+           size = NULL) +
+      .plot_theme
+
+    ggplotly(plot_overview_scatter)
 
   })
+
 
 
   # || Debug
@@ -295,6 +329,9 @@ server <- function(input, output) {
 
 
 # Run App -----------------------------------------------------------------
+
+str_glue("Starting Shiny App at {Sys.time()}") %>% inform()
+
 
 shinyApp(ui = ui, server = server)
 

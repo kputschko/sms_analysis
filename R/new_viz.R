@@ -209,5 +209,32 @@ ttt %>% ggplotly()
 
 
 # Check Beeline Swarm Plot ------------------------------------------------
+#ggbeeswarm
 
+# Length by Day -----------------------------------------------------------
+
+  data_test <-
+    test %>%
+    mutate(Hour = hour(DateTime),
+           Day = date(DateTime),
+           Weekday = wday(DateTime, label = TRUE, week_start = 1),
+           Week = floor_date(DateTime, unit = "week"),
+           Month = floor_date(DateTime, unit = "month") %>% date(),
+           Year = floor_date(DateTime, unit = "year") %>% year()) %>%
+    group_by(Day) %>%
+    fx_sms_summary()
+
+  p <-
+    data_test %>%
+    ggplot() +
+    aes(x = Day, y = Length_Sum, size = Message_Count, color = Contact_Count) +
+    geom_point(alpha = 0.60) +
+    scale_color_viridis_c() +
+    labs(y = "Message Length",
+         x = NULL,
+         color = "Contacts per Day",
+         size = "Messages per Day") +
+    .plot_theme
+
+  ggplotly(p)
 
