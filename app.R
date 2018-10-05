@@ -9,7 +9,9 @@ pacman::p_load(tidyverse, rlang, shiny, shinydashboard, scales, plotly, DT)
 
 source("R/fx_sms_read_xml.R")
 source("R/fx_sms_sumarise.R")
+source("R/fx_sms_append.R")
 
+str_glue("Starting Shiny App at {Sys.time()}") %>% inform()
 
 # |- Helpers ----
 fx_sms_app_render_dt <- function(data, yheight = 300) {
@@ -90,18 +92,19 @@ ui <- dashboardPage(
                                  choiceNames = c("Yes", "No"),
                                  choiceValues = c(TRUE, FALSE),
                                  inline = TRUE),
-                    actionButton("overview_action_import_add", "Add Backup to Database")
+                    actionButton("overview_action_append", "Add Backup to Database"),
+                    actionButton("overview_action_export", "Export Database")
                 ),
 
 
                 tabBox(width = 9, height = 300,
 
                        tabPanel("Database Summary",
-                                valueBoxOutput("overview_old_contacts", width = 4),
-                                valueBoxOutput("overview_old_messages", width = 4),
-                                valueBoxOutput("overview_old_length",   width = 4),
-                                infoBoxOutput("overview_old_mindate",   width = 6),
-                                infoBoxOutput("overview_old_maxdate",   width = 6)
+                                valueBoxOutput("overview_master_contacts", width = 4),
+                                valueBoxOutput("overview_master_messages", width = 4),
+                                valueBoxOutput("overview_master_length",   width = 4),
+                                infoBoxOutput("overview_master_mindate",   width = 6),
+                                infoBoxOutput("overview_master_maxdate",   width = 6)
                        ),
 
                        tabPanel("Backup Summary",
@@ -110,7 +113,8 @@ ui <- dashboardPage(
                                 valueBoxOutput("overview_new_length"),
                                 infoBoxOutput("overview_new_mindate"),
                                 infoBoxOutput("overview_new_maxdate")
-                       )
+                       ),
+                       tabPanel("Debug", textOutput("debug"))
 
                 )
               )
@@ -194,7 +198,7 @@ server <- function(input, output) {
   )
 
   # || Load Files
-  data_old <-
+  data_master <-
     eventReactive(input$overview_action_import_master,
                   path_rds_dir %>% str_c(input$path_rds_file) %>% read_rds())
 
@@ -204,22 +208,88 @@ server <- function(input, output) {
 
 
   # || Summarise Files
-  data_old_summary <- reactive(data_old() %>% fx_sms_summarise())
+  data_master_summary <- reactive(data_master() %>% fx_sms_summarise())
   data_new_summary <- reactive(data_new() %>% fx_sms_summarise())
 
 
   # || Display Values
-  output$overview_old_contacts <- renderValueBox(valueBox(subtitle = "Total Contacts", value = data_old_summary()$Contacts, color = "light-blue", icon = icon("user", lib = "glyphicon")))
-  output$overview_old_messages <- renderValueBox(valueBox(subtitle = "Total Messages", value = data_old_summary()$Messages, color = "light-blue", icon = icon("envelope", lib = "glyphicon")))
-  output$overview_old_length   <- renderValueBox(valueBox(subtitle = "Total Characters", value = data_old_summary()$Length, color = "light-blue", icon = icon("font", lib = "glyphicon")))
-  output$overview_old_mindate  <- renderInfoBox(infoBox("First Message", value = data_old_summary()$MinDate, fill = TRUE, color = "light-blue", icon = icon("calendar", lib = "glyphicon")))
-  output$overview_old_maxdate  <- renderInfoBox(infoBox("Last Message", value = data_old_summary()$MaxDate, fill = TRUE, color = "light-blue", icon = icon("calendar", lib = "glyphicon")))
+  output$overview_master_contacts <- renderValueBox(valueBox(subtitle = "Total Contacts", value = data_master_summary()$Contacts, color = "light-blue", icon = icon("user", lib = "glyphicon")))
+  output$overview_master_messages <- renderValueBox(valueBox(subtitle = "Total Messages", value = data_master_summary()$Messages, color = "light-blue", icon = icon("envelope", lib = "glyphicon")))
+  output$overview_master_length   <- renderValueBox(valueBox(subtitle = "Total Characters", value = data_master_summary()$Length, color = "light-blue", icon = icon("font", lib = "glyphicon")))
+  output$overview_master_mindate  <- renderInfoBox(infoBox("First Message", value = data_master_summary()$MinDate, fill = TRUE, color = "light-blue", icon = icon("calendar", lib = "glyphicon")))
+  output$overview_master_maxdate  <- renderInfoBox(infoBox("Last Message", value = data_master_summary()$MaxDate, fill = TRUE, color = "light-blue", icon = icon("calendar", lib = "glyphicon")))
 
   output$overview_new_contacts <- renderValueBox(valueBox(subtitle = "Total Contacts",   value = data_new_summary()$Contacts, color = "light-blue", icon = icon("user",     lib = "glyphicon")))
   output$overview_new_messages <- renderValueBox(valueBox(subtitle = "Total Messages",   value = data_new_summary()$Messages, color = "light-blue", icon = icon("envelope", lib = "glyphicon")))
   output$overview_new_length   <- renderValueBox(valueBox(subtitle = "Total Characters", value = data_new_summary()$Length,   color = "light-blue", icon = icon("font",     lib = "glyphicon")))
   output$overview_new_mindate  <- renderInfoBox(infoBox(  title = "First Message",       value = data_new_summary()$MinDate,  color = "light-blue", icon = icon("calendar", lib = "glyphicon"), fill = TRUE))
   output$overview_new_maxdate  <- renderInfoBox(infoBox(  title = "Last Message",        value = data_new_summary()$MaxDate,  color = "light-blue", icon = icon("calendar", lib = "glyphicon"), fill = TRUE))
+
+
+  # || Join Database + New
+  data_append <-
+    eventReactive(input$overview_action_append, {
+      if (data_master() %>% is.data.frame() %>% is_false() || data_new() %>% is.data.frame() %>% is_false()) {
+        abort("Please specify both a Database and a Backup file to be joined")
+      } else {
+        fx_sms_append(data_xml = data_new(), data_master = data_master())
+      }
+
+    })
+
+
+  # || Export Data
+  observeEvent(input$overview_action_export, {
+    try(silent = TRUE, {
+
+      export_backup_date <-
+        input$path_xml_file %>%
+        word(-1, sep = "/") %>%
+        word(1) %>%
+        str_remove("sms-")
+
+      path_export_master <- str_glue("data/test_{export_backup_date}_master.rds")
+      path_export_new    <- str_glue("data/test_{export_backup_date}_new.rds")
+
+      data_append() %>% write_rds(path_export_master, compress = "bz")
+      data_new() %>% write_rds(path_export_new, compress = "bz")
+    })
+  })
+
+
+  # || Anonymous
+  data_master_anon <- reactive({
+    if (input$overview_import_anon %>% parse_expr() %>% is_true()) {
+
+      data_anon <- read_csv("data/anon_id.csv", col_types = cols(id = col_integer(), animal = col_character()))
+
+      data_master() %>%
+        arrange(DateTime) %>%
+        distinct(Contact) %>%
+        rowid_to_column("id") %>%
+        left_join(data_anon, by = "id") %>%
+        left_join(data_master(), by = "Contact") %>%
+        select(Contact = animal, DateTime, MessageType, Message, MessageLength)
+
+    } else {
+
+      data_master()
+
+    }
+
+  })
+
+
+  # || Debug
+  output$debug <- renderPrint({
+    list(append_value = input$overview_action_append,
+         append_table = try(nrow(data_append())),
+         anon_value = input$overview_import_anon,
+         anon_check = try(data_master_anon()$Contact[[1]]),
+         import_check = try(input$path_rds_file),
+         export_check = try(export_backup_date)
+    )
+  })
 
 }
 

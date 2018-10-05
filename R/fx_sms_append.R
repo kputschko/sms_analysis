@@ -6,7 +6,10 @@
 
 # Define Function ---------------------------------------------------------
 
-fx_sms_import <- function(xml_path, prior_master_date) {
+fx_sms_append <- function(data_xml = NULL,
+                          data_master = NULL,
+                          path_xml = NULL,
+                          path_master = NULL) {
 
 
   # Environment -------------------------------------------------------------
@@ -17,15 +20,25 @@ fx_sms_import <- function(xml_path, prior_master_date) {
 
   # Import Data -------------------------------------------------------------
 
-  data_sms_old <- read_rds(str_c("data/", prior_master_date, "_master.rds"))
-  data_sms_new <- fx_sms_read_xml(xml_path)
+  data_sms_new <-
+    if (data_xml %>% is_null()) {
+      fx_sms_read_xml(path_xml)
+    } else {
+      data_xml
+    }
+
+  data_sms_old <-
+    if (data_master %>% is_null()) {
+      read_rds(path_master)
+    } else {
+        data_master
+      }
+
 
 
   # Master Data -------------------------------------------------------------
-  # Use fuzzy matching on datetime hour and message, by removing punctuation
-  # Then compare messages for those that are similar
-  # Choose to keep message that has proper punctuation
 
+  inform("Append New to Database")
   data_sms_master <-
     bind_rows(data_sms_old, data_sms_new) %>%
     arrange(desc(DateTime)) %>%
@@ -35,7 +48,11 @@ fx_sms_import <- function(xml_path, prior_master_date) {
 
 
   # Data Quality Check ------------------------------------------------------
+  # Use fuzzy matching on datetime hour and message, by removing punctuation
+  # Then compare messages for those that are similar
+  # Choose to keep message that has proper punctuation
 
+  inform("Remove Duplicates")
   possible_dupes <-
     data_sms_master %>%
     count(Contact, DateTime, MessageType) %>%
@@ -106,8 +123,8 @@ fx_sms_import <- function(xml_path, prior_master_date) {
 
   # remove_dupes %>% filter(DateTime %in% check_list) %>% View()
 
-
-  data_sms_master_clean <-
+  inform("End Append")
+  # data_sms_master_clean <-
     remove_dupes %>%
     distinct(Contact, DateTime, MessageType, Message, MessageLength)
 
@@ -184,22 +201,22 @@ fx_sms_import <- function(xml_path, prior_master_date) {
 
   # Removing Identification -------------------------------------------------
 
-  Anon <- read_csv("data/anon_id.csv",
-                   col_types = cols(
-                     ID = col_integer(),
-                     Landform = col_character()
-                   ))
-
-  data_anon_id <-
-    data_sms_master_clean %>%
-    arrange(DateTime) %>%
-    distinct(Contact) %>%
-    rowid_to_column("ID") %>%
-    left_join(Anon, by = "ID")
-
-  data_sms_anon <-
-    left_join(data_sms_master_clean, data_anon_id, by = "Contact") %>%
-    select(Contact = Landform, DateTime, MessageType, Message, MessageLength)
+  # Anon <- read_csv("data/anon_id.csv",
+  #                  col_types = cols(
+  #                    ID = col_integer(),
+  #                    Landform = col_character()
+  #                  ))
+  #
+  # data_anon_id <-
+  #   data_sms_master_clean %>%
+  #   arrange(DateTime) %>%
+  #   distinct(Contact) %>%
+  #   rowid_to_column("ID") %>%
+  #   left_join(Anon, by = "ID")
+  #
+  # data_sms_anon <-
+  #   left_join(data_sms_master_clean, data_anon_id, by = "Contact") %>%
+  #   select(Contact = Landform, DateTime, MessageType, Message, MessageLength)
 
 
 
@@ -207,23 +224,24 @@ fx_sms_import <- function(xml_path, prior_master_date) {
   # Grab the date from the xml file
   # bz rds compression is pretty fast
 
-  export_filename <-
-    xml_path %>%
-    word(-1, sep = "/") %>%
-    word(1) %>%
-    str_remove("sms-")
+  # export_filename <-
+  #   xml_path %>%
+  #   word(-1, sep = "/") %>%
+  #   word(1) %>%
+  #   str_remove("sms-")
 
 
-  write_rds(data_sms_new, str_glue("data/{export_filename}_new.rds"), compress = "bz")
-  write_rds(data_sms_anon, str_glue("data/{export_filename}_master_anon.rds"), compress = "bz")
-  write_rds(data_sms_master_clean, str_glue("data/{export_filename}_master.rds"), compress = "bz")
+  # write_rds(data_sms_new, str_glue("data/{export_filename}_new.rds"), compress = "bz")
+  # write_rds(data_sms_anon, str_glue("data/{export_filename}_master_anon.rds"), compress = "bz")
+  # write_rds(data_sms_master_clean, str_glue("data/{export_filename}_master.rds"), compress = "bz")
 
 
-  # End Function ------------------------------------------------------------
+    # End Function ------------------------------------------------------------
+  #   inform(
+  #     str_glue("We have added {nrow(data_sms_new)} new rows to the master database at `data/{export_filename}_master.rds`.
+  # These messages range from {min(data_sms_new$DateTime)} to {max(data_sms_new$DateTime)}")
+  #   )
 
-  "We have added {nrow(data_sms_new)} new rows to the master database at `data/{export_filename}_master.rds`.
-  These messages range from {min(data_sms_new$DateTime)} to {max(data_sms_new$DateTime)}" %>%
-    str_glue() %>%
-    inform()
+
 
 }
