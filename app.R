@@ -101,16 +101,32 @@ ui <- dashboardPage(
               ),
 
               fluidRow(
-                box(width = 3,
-                    title = "Top 25 Contacts",
-                    DTOutput("overview_top")),
 
-                box(width = 9,
+                # box(width = 3,
+                #     title = "Top 25 Contacts",
+                #     DTOutput("overview_top")),
+
+                box(width = 12,
                     title = "Message Length by Day",
                     footer = "Color: Contacts per Day - Size: Messages per Day",
                     plotlyOutput("overview_scatter", height = 400)
                 )
+              ),
+
+
+              fluidRow(
+
+                tabBox(title = "Top 25 Contacts", side = "right", width = 12, selected = "Message Count",
+
+                       tabPanel("Messages per Day", plotlyOutput("overview_bar_mpd")),
+                       tabPanel("Days of Contact",  plotlyOutput("overview_bar_daycnt")),
+                       tabPanel("Average Length",   plotlyOutput("overview_bar_avglen")),
+                       tabPanel("Message Length",   plotlyOutput("overview_bar_length")),
+                       tabPanel("Message Count",    plotlyOutput("overview_bar_count"))
+                )
               )
+
+
 
 
               # fluidRow(
@@ -278,20 +294,7 @@ server <- function(input, output) {
       deframe()
   )
 
-  output$overview_top <- renderDT(
-    data_summaries() %>%
-      pluck("sms_rank") %>%
-      top_n(n = 25, wt = -Rank_Score) %>%
-      arrange(Rank_Score) %>%
-      select(-Rank_Score) %>%
-      mutate_if(is.numeric, comma) %>%
-      fx_sms_app_render_dt(yheight = 400)
-  )
-
-
-
-
-  # |- Plot Scatter ----
+  # |- Plot Overview Scatter ----
   output$overview_scatter <- renderPlotly({
 
     plot_overview_scatter <-
@@ -302,16 +305,38 @@ server <- function(input, output) {
       aes(x = Day, y = Length_Sum, size = Message_Count, color = Contact_Count) +
       geom_point(alpha = 0.75) +
       scale_color_viridis_c() +
-      labs(y = NULL,
-           x = NULL,
-           color = NULL,
-           size = NULL) +
+      labs(y = NULL, x = NULL, color = NULL, size = NULL) +
       .plot_theme
 
     ggplotly(plot_overview_scatter)
 
   })
 
+
+  data_top <- reactive({
+    data_summaries() %>%
+      pluck("sms_rank") %>%
+      top_n(n = 25, wt = -Rank_Score) %>%
+      arrange(Rank_Score) %>%
+      select(-Rank_Score) %>%
+      mutate_at("Contact", as_factor) %>%
+      mutate(display = str_glue("Message Count: {comma(Message_Count)}\nLength Sum:{comma(Length_Sum)}\nAverage Length: {comma(Length_Avg)}\nDays of Contact: {comma(Contact_Days)}\nMessages per Day: {comma(Messages_per_Day)}"))
+  })
+
+
+  # |- Plot Overview Bar ----
+  .fx_plot_bar <- function(data = data_top(), y) {
+    plot_ly(data = data, x = ~ Contact, y = ~ get(y), text = ~display,
+            marker = list(line = list(color = "black", width = 1.5)),
+            type = "bar") %>%
+      layout(title = NULL, xaxis = list(title = ""), yaxis = list(title = ""))
+  }
+
+  output$overview_bar_mpd    <- renderPlotly({.fx_plot_bar(y = "Messages_per_Day")})
+  output$overview_bar_count  <- renderPlotly({.fx_plot_bar(y = "Message_Count")})
+  output$overview_bar_length <- renderPlotly({.fx_plot_bar(y = "Length_Sum")})
+  output$overview_bar_avglen <- renderPlotly({.fx_plot_bar(y = "Length_Avg")})
+  output$overview_bar_daycnt <- renderPlotly({.fx_plot_bar(y = "Contact_Days")})
 
 
   # || Debug

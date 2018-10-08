@@ -9,14 +9,14 @@ contact_filter <- "Canyon"
 # contact_filter <- "Channel"
 contact_filter_logic <- str_glue("Contact == '{contact_filter}'")
 
-  if (is_empty(contact_filter_logic)) {
-    contact_filter_rlang <- NULL
-    alpha_adj <- 0.05
-    span_adj  <- 0.01
-  } else {
-    contact_filter_rlang <- parse_quos(contact_filter_logic, env = caller_env())
-    alpha_adj <- 0.40
-    span_adj  <- 0.25}
+if (is_empty(contact_filter_logic)) {
+  contact_filter_rlang <- NULL
+  alpha_adj <- 0.05
+  span_adj  <- 0.01
+} else {
+  contact_filter_rlang <- parse_quos(contact_filter_logic, env = caller_env())
+  alpha_adj <- 0.40
+  span_adj  <- 0.25}
 
 
 # Attempt 1 ---------------------------------------------------------------
@@ -74,16 +74,16 @@ contact_filter_logic <- str_glue("Contact == '{contact_filter}'")
 # Another -----------------------------------------------------------------
 
 
-  # export_data_period_day %>%
-  # ggplot() +
-  # aes(x = Day, y = Length_Avg, weight = Message_Count, size = Message_Count) +
-  # geom_point(data = export_data_period_contact_day %>% filter(!!! contact_filter_rlang),
-  #            alpha = alpha_adj,
-  #            shape = 15) +
-  # geom_smooth(color = "red", se = FALSE) +
-  # geom_smooth(data = export_data_period_contact_day %>% filter(!!! contact_filter_rlang), se = FALSE) +
-  # scale_y_log10() +
-  # theme_minimal()
+# export_data_period_day %>%
+# ggplot() +
+# aes(x = Day, y = Length_Avg, weight = Message_Count, size = Message_Count) +
+# geom_point(data = export_data_period_contact_day %>% filter(!!! contact_filter_rlang),
+#            alpha = alpha_adj,
+#            shape = 15) +
+# geom_smooth(color = "red", se = FALSE) +
+# geom_smooth(data = export_data_period_contact_day %>% filter(!!! contact_filter_rlang), se = FALSE) +
+# scale_y_log10() +
+# theme_minimal()
 
 # Overall
 base <-
@@ -195,7 +195,7 @@ ttt <-
 ttt %>% ggplotly()
 
 
-  ggplot() +
+ggplot() +
 
   # aes(x = Length_Difference, y = Contact, fill = ..x..) +
   # geom_density_ridges_gradient(rel_min_height = 0.0001) +
@@ -213,28 +213,101 @@ ttt %>% ggplotly()
 
 # Length by Day -----------------------------------------------------------
 
-  data_test <-
-    test %>%
-    mutate(Hour = hour(DateTime),
-           Day = date(DateTime),
-           Weekday = wday(DateTime, label = TRUE, week_start = 1),
-           Week = floor_date(DateTime, unit = "week"),
-           Month = floor_date(DateTime, unit = "month") %>% date(),
-           Year = floor_date(DateTime, unit = "year") %>% year()) %>%
-    group_by(Day) %>%
-    fx_sms_summary()
+# data_test <-
+#   test %>%
+#   mutate(Hour = hour(DateTime),
+#          Day = date(DateTime),
+#          Weekday = wday(DateTime, label = TRUE, week_start = 1),
+#          Week = floor_date(DateTime, unit = "week"),
+#          Month = floor_date(DateTime, unit = "month") %>% date(),
+#          Year = floor_date(DateTime, unit = "year") %>% year()) %>%
+#   group_by(Day) %>%
+#   fx_sms_summary()
 
-  p <-
-    data_test %>%
-    ggplot() +
-    aes(x = Day, y = Length_Sum, size = Message_Count, color = Contact_Count) +
-    geom_point(alpha = 0.60) +
-    scale_color_viridis_c() +
-    labs(y = "Message Length",
-         x = NULL,
-         color = "Contacts per Day",
-         size = "Messages per Day") +
-    .plot_theme
 
-  ggplotly(p)
+p <-
+  deframe(test_prep)$sms_day %>%
+  ggplot() +
+  aes(x = Day, y = Length_Sum, size = Message_Count, color = Contact_Count) +
+  geom_point(alpha = 0.60) +
+  scale_color_viridis_c() +
+  labs(y = "Message Length",
+       x = NULL,
+       color = "Contacts per Day",
+       size = "Messages per Day") +
+  .plot_theme
 
+ggplotly(p)
+
+
+
+# Range - Len/Day ---------------------------------------------------------
+
+devtools::install_github("jbkunst/highcharter")
+library(highcharter)
+
+test_range <-
+  test %>%
+  mutate(Day = date(DateTime)) %>%
+  group_by(Day) %>%
+  summarise_at("MessageLength", funs(min, median, max, mean))
+
+test_range %>%
+  ggplot() +
+  aes(x = Day, ymin = min, ymax = max, color = median) +
+  geom_linerange() +
+  scale_color_viridis_c() +
+  .plot_theme
+
+hchart(lala,
+       type = "columnrange",
+       hcaes(x = Day, low = min, high = max, color = median))
+
+
+# Rankings ----------------------------------------------------------------
+
+test_prep <- test %>% fx_sms_prepare()
+
+# deframe(test_prep)$sms_rank %>%
+#   top_n(n = 25, wt = -Rank_Score) %>%
+#   hchart("treemap", hcaes(x = Contact, value = !!sym(top_value), color = Rank_Score))
+
+test_ranks <-
+  deframe(test_prep)$sms_rank %>%
+  top_n(n = 25, wt = -Rank_Score) %>%
+  arrange(Rank_Score) %>%
+  mutate(Contact = as_factor(Contact))
+
+test_ranks %>% hchart("column", hcaes(y = Message_Count, x = Contact))
+test_ranks %>% hchart("column", hcaes(y = Length_Sum, x = Contact))
+test_ranks %>% hchart("column", hcaes(y = Length_Avg, x = Contact))
+test_ranks %>% hchart("column", hcaes(y = Contact_Days, x = Contact))
+test_ranks %>% hchart("column", hcaes(y = Messages_per_Day, x = Contact))
+
+library(plotly)
+library(scales)
+library(tidyverse)
+
+test_ranks %>%
+  ggplot() +
+  aes(x = Contact, y = Message_Count) +
+  geom_col() +
+  coord_flip() +
+  .plot_theme
+
+
+top_value <-
+  c("Message_Count", "Length_Sum", "Length_Avg", "Contact_Days", "Messages_per_Day") %>%
+  sample(1)
+
+top_value_display <- top_value %>% str_replace_all("_", " ")
+
+plot_ly(data = test_ranks,
+        x = ~ Contact,
+        y = ~ get(top_value),
+        text = ~str_c(top_value_display, comma(get(top_value)), sep = ": "),
+        marker = list(line = list(color = "black", width = 1.5)),
+        type = "bar") %>%
+  layout(title = top_value_display,
+         xaxis = list(title = ""),
+         yaxis = list(title = ""))
