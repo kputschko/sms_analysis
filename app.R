@@ -36,6 +36,20 @@ fx_sms_app_render_dt <- function(data, yheight = 300) {
         legend.title.align = 0.5)
 
 
+.plot_theme_dark <-
+  .plot_theme +
+  theme(panel.grid.minor.y = element_blank(),
+        panel.grid.minor.x = element_blank(),
+        panel.grid.major.x = element_blank(),
+        panel.grid.major.y = element_line(linetype = "solid", color = "#707073"),
+        rect = element_rect(fill = "#2a2a2b")
+  )
+
+
+.plot_colors <- list(me = "#ef8a62", them = "#67a9cf")
+
+
+
 # User Interface ----------------------------------------------------------
 
 ui <- dashboardPage(
@@ -101,11 +115,6 @@ ui <- dashboardPage(
               ),
 
               fluidRow(
-
-                # box(width = 3,
-                #     title = "Top 25 Contacts",
-                #     DTOutput("overview_top")),
-
                 box(width = 12,
                     title = "Message Length by Day",
                     footer = "Color: Contacts per Day - Size: Messages per Day",
@@ -117,38 +126,43 @@ ui <- dashboardPage(
               fluidRow(
 
                 tabBox(title = "Top 25 Contacts", side = "right", width = 12, selected = "Message Count",
-
                        tabPanel("Messages per Day", plotlyOutput("overview_bar_mpd")),
                        tabPanel("Days of Contact",  plotlyOutput("overview_bar_daycnt")),
                        tabPanel("Average Length",   plotlyOutput("overview_bar_avglen")),
                        tabPanel("Message Length",   plotlyOutput("overview_bar_length")),
                        tabPanel("Message Count",    plotlyOutput("overview_bar_count"))
                 )
+              ),
+
+              fluidRow(
+                tabBox(title = "Exploration", side = "right", width = 8,
+                       tabPanel("Whose Messages Are Longer?", plotlyOutput("overview_plot_diff", height = 600)),
+                       tabPanel("Time of Day")
+                )
               )
-
-
-
-
-              # fluidRow(
-              #   box(plotlyOutput("overview_daily_average"), title = "Average Message Length by Day", width = 12)
-              # ),
-
-              # fluidRow(
-              #   box(DTOutput("overview_top_contacts"), title = "Top 25 Contacts", width = 4, height = 650),
-              #   box(plotlyOutput("overview_length_difference"), title = "Whose Messages are Longer?", width = 8, height = 650)
-              # )
-
-
-      )
-    ),
+      ),
 
     # |- Contact ----
-    tabItem(tabName = "ui_contact"),
+    tabItem(tabName = "ui_contact",
+
+            fluidRow(
+              box(width = 3,
+                uiOutput("contact_list"))
+            ),
+            fluidRow(
+              box("Days of Contact", width = 12,
+                  plotlyOutput("contact_timeline"), footer = "Color: Median Message Length")
+            )
+
+    ),
 
     # |- Sent ----
     tabItem(tabName = "ui_sent")
-  )
-)
+
+    ) # close tabItems
+  ) # close dashboardBody
+) # close dashboardPage
+
 
 
 
@@ -156,31 +170,7 @@ ui <- dashboardPage(
 
 server <- function(input, output) {
 
-  options(shiny.maxRequestSize = 100 * 1024 ^ 2)
-
   # | Overview ------------------------------------------------------------
-
-  # output$overview_daily_average <-
-  #   renderPlotly(data_visuals$overview_plot_daily_average[[1]])
-
-  # output$overview_length_difference <-
-  #   renderPlotly(data_visuals$overview_plot_dif_length[[1]] %>% layout(height = 600))
-
-  # output$overview_top_contacts <-
-  #   renderDT(expr = data_summary$data_sms_rank %>%
-  #              filter(Contact %in% data_visuals$list_top_contacts[[1]]) %>%
-  #              arrange(-Length_Sum) %>%
-  #              select(-contains("Rank")) %>%
-  #              datatable(
-  #                height = 600,
-  #                extensions = c('Scroller'),
-  #                options = list(dom = 't',
-  #                               scrollY = 550,
-  #                               scroller = TRUE,
-  #                               scrollX = TRUE)) %>%
-  #              formatRound(2:3, digits = 0) %>%
-  #              formatRound(c(4, 6), digits = 2))
-
 
   # || List Files
   path_rds_dir <- "data\\"
@@ -339,6 +329,82 @@ server <- function(input, output) {
   output$overview_bar_daycnt <- renderPlotly({.fx_plot_bar(y = "Contact_Days")})
 
 
+  # |- Plot Overview Difference ----
+  output$overview_plot_diff <- renderPlotly({
+
+    plot_overview_diff <-
+      data_summaries() %>%
+      pluck("sms_diff") %>%
+      filter(Contact %in% data_top()$Contact) %>%
+
+      ggplot() +
+      aes(x = Contact) +
+      geom_linerange(aes(ymin = Q1, ymax = Q3, color = `Longer Messages`)) +
+      geom_point(aes(y = Median,
+                     size = `Days of Contact`,
+                     fill = `Longer Messages`),
+                 color = "black",
+                 shape = 21) +
+      geom_hline(aes(yintercept = 0)) +
+      labs(x = NULL, color = NULL,
+           y = "Median Difference in Character Length") +
+      guides(color = FALSE, fill = FALSE, size = FALSE) +
+      coord_flip() +
+      scale_fill_manual(values = c(.plot_colors$me, .plot_colors$them)) +
+      scale_color_manual(values = c(.plot_colors$me, .plot_colors$them)) +
+      .plot_theme
+
+    plot_overview_diff %>% ggplotly()
+
+  })
+
+
+# | Contact ---------------------------------------------------------------
+
+  output$contact_list <- renderUI(
+    selectizeInput("filter_contact",
+                   label = "Select Contact",
+                   selected = NULL,
+                   multiple = TRUE,
+                   choices = data_top()$Contact,
+                   options = list(maxItems = 1, placeholder = "NULL"))
+  )
+
+
+  output$contact_timeline <- renderPlotly({
+
+    if (input$filter_contact %>% is_null()) {
+      return(NULL)
+    } else {
+
+
+    plot_timeline <-
+      data_summaries() %>%
+      pluck("sms_week_contact") %>%
+      filter(Contact == input$filter_contact) %>%
+      ggplot() +
+      aes(x = Week,
+          ymin = Minimum,
+          ymax = Maximum,
+          y = Median,
+          n = Count,
+          color = Median) +
+      geom_linerange() +
+      scale_color_viridis_c(direction = -1, option = "D") +
+      labs(y = NULL, x = NULL, color = NULL) +
+      .plot_theme_dark
+
+    ggplotly(plot_timeline)
+
+    }
+
+  })
+
+# | Sent ------------------------------------------------------------------
+
+
+
+
   # || Debug
   output$debug <- renderPrint({
     list(append_value = input$overview_action_append,
@@ -346,7 +412,9 @@ server <- function(input, output) {
          anon_value = input$overview_import_anon,
          anon_check = try(data_master_anon()$Contact[[1]]),
          import_check = try(input$path_rds_file),
-         export_check = try(export_backup_date)
+         export_check = try(export_backup_date, silent = TRUE),
+         select_conta = input$filter_contact,
+         select_table = try(nrow(data_summaries() %>% pluck("sms_week_contact")))
     )
   })
 

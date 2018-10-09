@@ -54,6 +54,10 @@ fx_sms_prepare <- function(data_master) {
     group_by(Day, MessageType) %>%
     .fx_sms_summary()
 
+  export_sms_week_contact <-
+    data_sms_period %>%
+    group_by(Week, Contact) %>%
+    summarise_at("MessageLength", funs("Minimum" = min, "Maximum" = max, "Median" = median, "Count" = length))
 
   # Contact Summary ---------------------------------------------------------
 
@@ -67,6 +71,13 @@ fx_sms_prepare <- function(data_master) {
               Contact_Last = max(DateTime) %>% date(),
               Contact_Days = n_distinct(date(DateTime))) %>%
     mutate(Messages_per_Day = Message_Count / Contact_Days)
+
+  export_sms_contact_day <-
+    data_sms_period %>%
+    group_by(Contact, Day) %>%
+    summarise(Message_Count = n(),
+              Length_Sum = sum(MessageLength),
+              Length_Avg = mean(MessageLength))
 
 
   export_sms_contact_type <-
@@ -205,7 +216,10 @@ fx_sms_prepare <- function(data_master) {
     summarise(quantiles = list(quantile(Length_Difference) %>% enframe() %>% spread(name, value)),
               `Days of Contact` = length(Day)) %>%
     unnest(quantiles) %>%
-    rename(Min = "0%", Max = "100%", Q1 = "25%", Median = "50%", Q3 = "75%")
+    rename(Min = "0%", Max = "100%", Q1 = "25%", Median = "50%", Q3 = "75%") %>%
+    arrange(Median) %>%
+    mutate(Contact = as_factor(Contact),
+           `Longer Messages` = if_else(Median > 0, "Mine", "Theirs"))
 
 
   # export_data_sms_dif_length <-

@@ -311,3 +311,99 @@ plot_ly(data = test_ranks,
   layout(title = top_value_display,
          xaxis = list(title = ""),
          yaxis = list(title = ""))
+
+
+# Difference --------------------------------------------------------------
+
+.plot_colors <- list(me = "#ef8a62", them = "#67a9cf")
+
+test_plot_dif <-
+  test %>%
+  fx_sms_prepare() %>%
+  deframe() %>%
+  pluck("sms_diff") %>%
+  filter(Contact %in% test_ranks$Contact) %>%
+
+  ggplot() +
+  aes(x = Contact) +
+  geom_linerange(aes(ymin = Q1,
+                     ymax = Q3,
+                     color = `Longer Messages`)) +
+  geom_point(aes(y = Median,
+                 size = `Days of Contact`,
+                 fill = `Longer Messages`),
+             color = "black",
+             shape = 21) +
+  geom_hline(aes(yintercept = 0)) +
+  labs(x = NULL,
+       y = "Median Difference in Character Length",
+       # fill = "Whose Messages\nAre Longer?",
+       # size = "Days of Contact",
+       color = NULL) +
+  guides(color = FALSE, fill = FALSE, size = FALSE) +
+  coord_flip() +
+  scale_fill_manual(values = c(.plot_colors$me, .plot_colors$them)) +
+  scale_color_manual(values = c(.plot_colors$me, .plot_colors$them)) +
+  .plot_theme
+
+
+test_plot_dif %>% ggplotly()
+
+
+# Length - Prop -----------------------------------------------------------
+
+test <- readRDS("C:/Users/exp01754/OneDrive/Data/sms_analysis/data/2018-08-06_master.rds")
+.plot_colors <- list(me = "#ef8a62", them = "#67a9cf")
+
+test_prep <- test %>% fx_sms_prepare()
+
+test_ranks <-
+  deframe(test_prep)$sms_rank %>%
+  top_n(n = 25, wt = -Rank_Score) %>%
+  arrange(Rank_Score) %>%
+  mutate(Contact = as_factor(Contact))
+
+test_lenprop <-
+  deframe(test_prep)$sms_contact_type %>%
+  filter(Contact %in% test_ranks$Contact)
+
+test_lenprop %>%
+  ggplot(aes(x = Contact, y = Length_Sum, fill = MessageType)) +
+  geom_col(color = "black", position = "fill") +
+  coord_flip() +
+  geom_hline(aes(yintercept = 0.50), linetype = "dashed") +
+  labs(x = NULL, y = NULL, fill = "Message Type") +
+  ggtitle("Proportion of Message Length") +
+  scale_fill_manual(values = c(.plot_colors$me, .plot_colors$them)) +
+  .plot_theme
+
+
+# Timelines ---------------------------------------------------------------
+
+.plot_theme_dark <-
+  .plot_theme +
+  theme(panel.grid.minor.y = element_blank(),
+        panel.grid.minor.x = element_blank(),
+        panel.grid.major.x = element_blank(),
+        panel.grid.major.y = element_line(linetype = "solid", color = "#707073"),
+        rect = element_rect(fill = "#2a2a2b")
+  )
+
+test_timeline <-
+  export_sms_week_contact %>%
+  # filter(Contact == "Christy McGraw") %>%
+  # filter(Contact == "Emily Kay Piellusch") %>%
+  ggplot() +
+  aes(x = Week,
+      ymin = Minimum,
+      ymax = Maximum,
+      y = Median,
+      n = Count,
+      color = Median) +
+  geom_linerange() +
+  scale_color_viridis_c(direction = -1, option = "D") +
+  labs(y = NULL, x = NULL, color = "Median Message Length") +
+  .plot_theme_dark
+
+
+ggplotly(test_timeline)
