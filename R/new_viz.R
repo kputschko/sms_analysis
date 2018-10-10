@@ -409,3 +409,88 @@ test_timeline <-
 
 
 ggplotly(test_timeline)
+
+
+# Tidy Text ---------------------------------------------------------------
+
+install.packages("tidytext")
+pacman::p_load(tidyverse, tidytext)
+
+test <- readRDS("C:/Users/exp01754/OneDrive/Data/sms_analysis/data/2018-08-06_master.rds")
+test_prep <- test %>% fx_sms_prepare()
+
+stop_words <- get_stopwords(source = "snowball")
+
+test_nlp <-
+  test %>%
+  # filter(Contact == "Emily Kay Piellusch") %>%
+  # filter(Contact == "Patrick Campbell") %>%
+  # filter(Contact == "Mom") %>%
+  arrange(DateTime) %>%
+  rowid_to_column("Message_Number") %>%
+  group_by(MessageType) %>%
+  unnest_tokens(word, Message) %>%
+  anti_join(stop_words) %>%
+  count(MessageType, word, sort = TRUE) %>%
+  mutate(proportion = n / sum(n)) %>%
+  select(-n) %>%
+  spread(MessageType, proportion) %>%
+
+  ggplot() +
+  aes(x = Received, y = Sent, color = abs(Sent - Received)) +
+  geom_abline(color = "gray40", lty = 2) +
+  geom_jitter(alpha = 0.1, size = 2.5, width = 0.3, height = 0.3) +
+  geom_text(aes(label = word), check_overlap = TRUE, vjust = 1.5) +
+  scale_x_log10(labels = percent_format()) +
+  scale_y_log10(labels = percent_format()) +
+  scale_color_gradient(limits = c(0, 0.001), low = "darkslategray4", high = "gray75") +
+  theme(legend.position = "none")
+
+
+
+# Initial -----------------------------------------------------------------
+
+install.packages("ggridges")
+library(ggridges)
+
+deframe(test_prep)$sms_initial_hour
+
+test_prep[7,2][[1]][[1]] %>%
+  ungroup() %>%
+  filter(Contact == "Emily Kay Piellusch") %>%
+  select(-Contact) %>%
+  add_row(Hour = 0:23) %>%
+  complete(MessageType, Hour, fill = list(Message_Count = 0, Total_Length = 0)) %>%
+  filter(!is.na(MessageType)) %>%
+  mutate(prop = Message_Count / sum(Message_Count)) %>%
+
+  # ggplot() + aes(x = Hour, weight = prop, fill = MessageType) + geom_density(alpha = 0.80) + .plot_theme
+  # ggplot() + aes(x = Hour, y = prop, color = MessageType) + geom_smooth(alpha = 0.6, span = 0.50, se = FALSE)
+  ggplot() + aes(x = Hour, y = MessageType, height = Message_Count, fill = MessageType) + geom_density_ridges(stat = "identity", alpha = 0.75)
+
+test_data_initial <-
+  data_sms_period %>%
+  arrange(DateTime) %>%
+  group_by(Day, Contact) %>%
+  slice(1) %>%
+  # filter(Contact == "Emily Kay Piellusch") %>%
+  # filter(Contact == "Mom") %>%
+  filter(Contact == "Patrick Campbell")
+
+test_plot_initial <-
+  test_data_initial %>%
+  ggplot() +
+  aes(x = Hour, fill = MessageType) +
+  geom_density(alpha = 0.50, color = "gray") +
+  .plot_theme +
+  labs(y = NULL, fill = NULL, x = NULL) +
+  scale_x_continuous(breaks = seq(0, 24, by = 6)) +
+  theme(axis.text.y = element_blank())
+
+
+  # test_data_initial %>%
+  # ggplot() +
+  # aes(x = Hour, y = MessageType) +
+  # geom_density_ridges()
+
+test_plot_initial %>% ggplotly()

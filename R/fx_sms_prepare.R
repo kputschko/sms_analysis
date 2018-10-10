@@ -183,24 +183,7 @@ fx_sms_prepare <- function(data_master) {
     data_sms_period %>%
     arrange(DateTime) %>%
     group_by(Contact, Day) %>%
-    slice(1) %>%
-    group_by(Contact, MessageType, Hour) %>%
-    summarise(Message_Count = n(),
-              Total_Length = sum(MessageLength))
-
-
-
-  # export_data_sms_first_message <-
-  #   data_sms_period %>%
-  #   group_by(Contact, Day) %>%
-  #   summarise(First_Message = first(MessageType, order_by = DateTime)) %>%
-  #   count(Contact, First_Message) %>%
-  #   ungroup() %>%
-  #   complete(Contact, First_Message, fill = lst(n = 0)) %>%
-  #   group_by(Contact) %>%
-  #   mutate(Proportion = n / sum(n)) %>%
-  #   rename(Count = n)
-
+    slice(1)
 
 
   # Sent / Rec Difference ---------------------------------------------------

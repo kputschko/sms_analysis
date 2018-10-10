@@ -143,8 +143,8 @@ ui <- dashboardPage(
                   DTOutput("contact_summary")),
 
               tabBox(width = 9,
-                tabPanel(title = "Days of Contact", plotlyOutput("contact_timeline")),
-                tabPanel(title = "...")
+                tabPanel(title = "Contact Timeline", plotlyOutput("contact_timeline")),
+                tabPanel(title = "Initial Messages", plotlyOutput("contact_initial"))
 
 
               )
@@ -421,10 +421,34 @@ server <- function(input, output) {
           color = Median) +
       geom_linerange(size = 2) +
       scale_color_viridis_c(direction = -1, option = "D", end = 1, begin = 0.30) +
-      labs(y = NULL, x = NULL, color = "Median\nMessage\nLength", title = "Message Length Range") +
+      labs(y = NULL, x = NULL, color = "Median\nMessage\nLength", title = "Range of Message Lengths") +
       .plot_theme_dark
 
     ggplotly(plot_timeline)
+
+    }
+
+  })
+
+
+  output$contact_initial <- renderPlotly({
+    if (input$filter_contact %>% is_null()) {
+      return(NULL)
+    } else {
+
+      plot_initial <-
+        data_summaries() %>%
+        pluck("sms_initial_hour") %>%
+        filter(Contact == input$filter_contact) %>%
+        ggplot() +
+        aes(x = Hour, fill = MessageType) +
+        geom_density(alpha = 0.50, color = "gray") +
+        scale_x_continuous(breaks = seq(0, 24, by = 6)) +
+        labs(y = NULL, fill = NULL, x = "Time of Day", title = "Who is More Likely to Initiate Conversation?") +
+        .plot_theme +
+        theme(axis.text.y = element_blank())
+
+      ggplotly(plot_initial)
 
     }
 
