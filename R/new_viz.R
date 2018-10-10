@@ -351,11 +351,13 @@ test_plot_dif %>% ggplotly()
 
 
 # Length - Prop -----------------------------------------------------------
-
+library(tidyverse)
 test <- readRDS("C:/Users/exp01754/OneDrive/Data/sms_analysis/data/2018-08-06_master.rds")
 .plot_colors <- list(me = "#ef8a62", them = "#67a9cf")
 
 test_prep <- test %>% fx_sms_prepare()
+deframe(test_prep)
+
 
 test_ranks <-
   deframe(test_prep)$sms_rank %>%
@@ -390,9 +392,9 @@ test_lenprop %>%
   )
 
 test_timeline <-
-  export_sms_week_contact %>%
+  deframe(test_prep)$sms_week_contact %>%
   # filter(Contact == "Christy McGraw") %>%
-  # filter(Contact == "Emily Kay Piellusch") %>%
+  filter(Contact == "Emily Kay Piellusch") %>%
   ggplot() +
   aes(x = Week,
       ymin = Minimum,
@@ -401,7 +403,7 @@ test_timeline <-
       n = Count,
       color = Median) +
   geom_linerange() +
-  scale_color_viridis_c(direction = -1, option = "D") +
+  scale_color_viridis_c(direction = -1, option = "D", end = 1, begin = 0.30) +
   labs(y = NULL, x = NULL, color = "Median Message Length") +
   .plot_theme_dark
 

@@ -18,6 +18,7 @@ source("R/fx_sms_prepare.R")
 fx_sms_app_render_dt <- function(data, yheight = 300) {
   datatable(
     data = data,
+    rownames = FALSE,
     extensions = c('Scroller'),
     options = list(dom = 't',
                    scrollY = yheight,
@@ -120,25 +121,6 @@ ui <- dashboardPage(
                     footer = "Color: Contacts per Day - Size: Messages per Day",
                     plotlyOutput("overview_scatter", height = 400)
                 )
-              ),
-
-
-              fluidRow(
-
-                tabBox(title = "Top 25 Contacts", side = "right", width = 12, selected = "Message Count",
-                       tabPanel("Messages per Day", plotlyOutput("overview_bar_mpd")),
-                       tabPanel("Days of Contact",  plotlyOutput("overview_bar_daycnt")),
-                       tabPanel("Average Length",   plotlyOutput("overview_bar_avglen")),
-                       tabPanel("Message Length",   plotlyOutput("overview_bar_length")),
-                       tabPanel("Message Count",    plotlyOutput("overview_bar_count"))
-                )
-              ),
-
-              fluidRow(
-                tabBox(title = "Exploration", side = "right", width = 8,
-                       tabPanel("Whose Messages Are Longer?", plotlyOutput("overview_plot_diff", height = 600)),
-                       tabPanel("Time of Day")
-                )
               )
       ),
 
@@ -146,18 +128,46 @@ ui <- dashboardPage(
     tabItem(tabName = "ui_contact",
 
             fluidRow(
-              box(width = 3,
-                uiOutput("contact_list"))
+              tabBox(title = "Top 25 Contacts", side = "right", width = 12, selected = "Message Count",
+                     tabPanel("Messages per Day", plotlyOutput("overview_bar_mpd")),
+                     tabPanel("Days of Contact",  plotlyOutput("overview_bar_daycnt")),
+                     tabPanel("Average Length",   plotlyOutput("overview_bar_avglen")),
+                     tabPanel("Message Length",   plotlyOutput("overview_bar_length")),
+                     tabPanel("Message Count",    plotlyOutput("overview_bar_count"))
+              )
             ),
+
             fluidRow(
-              box("Days of Contact", width = 12,
-                  plotlyOutput("contact_timeline"), footer = "Color: Median Message Length")
+              box(width = 3,
+                  uiOutput("contact_list"),
+                  DTOutput("contact_summary")),
+
+              tabBox(width = 9,
+                tabPanel(title = "Days of Contact", plotlyOutput("contact_timeline")),
+                tabPanel(title = "...")
+
+
+              )
             )
+
+            # fluidRow(
+            #   box("Days of Contact", width = 9,
+            #       , footer = "Color: Median Message Length")
+            # )
 
     ),
 
     # |- Sent ----
-    tabItem(tabName = "ui_sent")
+    tabItem(tabName = "ui_sent",
+
+            fluidRow(
+              tabBox(title = "Exploration", side = "right", width = 8,
+                     tabPanel("Whose Messages Are Longer?", plotlyOutput("overview_plot_diff", height = 600)),
+                     tabPanel("Time of Day")
+              )
+            )
+
+            )
 
     ) # close tabItems
   ) # close dashboardBody
@@ -371,6 +381,26 @@ server <- function(input, output) {
   )
 
 
+  output$contact_summary <- renderDT({
+
+    if (input$filter_contact %>% is_null()) {
+      return(NULL)
+    } else {
+
+      data_summaries() %>%
+        pluck("sms_contact_type") %>%
+        ungroup() %>%
+        filter(Contact == input$filter_contact) %>%
+        select(-Contact) %>%
+        mutate_if(is.numeric, comma) %>%
+        mutate_if(is.Date, as.character) %>%
+        gather(Measure, Value, -MessageType) %>%
+        spread(MessageType, Value) %>%
+        fx_sms_app_render_dt()
+    }
+  })
+
+
   output$contact_timeline <- renderPlotly({
 
     if (input$filter_contact %>% is_null()) {
@@ -389,9 +419,9 @@ server <- function(input, output) {
           y = Median,
           n = Count,
           color = Median) +
-      geom_linerange() +
-      scale_color_viridis_c(direction = -1, option = "D") +
-      labs(y = NULL, x = NULL, color = NULL) +
+      geom_linerange(size = 2) +
+      scale_color_viridis_c(direction = -1, option = "D", end = 1, begin = 0.30) +
+      labs(y = NULL, x = NULL, color = "Median\nMessage\nLength", title = "Message Length Range") +
       .plot_theme_dark
 
     ggplotly(plot_timeline)
