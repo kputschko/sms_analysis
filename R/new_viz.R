@@ -318,8 +318,7 @@ plot_ly(data = test_ranks,
 .plot_colors <- list(me = "#ef8a62", them = "#67a9cf")
 
 test_plot_dif <-
-  test %>%
-  fx_sms_prepare() %>%
+  test_prep %>%
   deframe() %>%
   pluck("sms_diff") %>%
   filter(Contact %in% test_ranks$Contact) %>%
@@ -335,17 +334,16 @@ test_plot_dif <-
              color = "black",
              shape = 21) +
   geom_hline(aes(yintercept = 0)) +
-  labs(x = NULL,
-       y = "Median Difference in Character Length",
-       # fill = "Whose Messages\nAre Longer?",
-       # size = "Days of Contact",
-       color = NULL) +
+  labs(x = NULL, color = NULL,
+       y = "Median Differene",
+       title = "Whose Messages Are Longer?") +
   guides(color = FALSE, fill = FALSE, size = FALSE) +
-  coord_flip() +
   scale_fill_manual(values = c(.plot_colors$me, .plot_colors$them)) +
   scale_color_manual(values = c(.plot_colors$me, .plot_colors$them)) +
-  .plot_theme
-
+  .plot_theme +
+  theme(panel.grid.major.x = element_blank(),
+        panel.grid.minor = element_line(linetype = 3),
+        axis.text.x = element_text(angle = -35))
 
 test_plot_dif %>% ggplotly()
 

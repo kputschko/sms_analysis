@@ -148,26 +148,18 @@ ui <- dashboardPage(
 
 
               )
-            )
+            ),
 
-            # fluidRow(
-            #   box("Days of Contact", width = 9,
-            #       , footer = "Color: Median Message Length")
-            # )
+            fluidRow(
+              box(title = NULL, width = 8,
+                  plotlyOutput("overview_plot_diff", height = 450), footer = "Size: Days of Contact")
+
+            )
 
     ),
 
     # |- Sent ----
-    tabItem(tabName = "ui_sent",
-
-            fluidRow(
-              tabBox(title = "Exploration", side = "right", width = 8,
-                     tabPanel("Whose Messages Are Longer?", plotlyOutput("overview_plot_diff", height = 600)),
-                     tabPanel("Time of Day")
-              )
-            )
-
-            )
+    tabItem(tabName = "ui_sent")
 
     ) # close tabItems
   ) # close dashboardBody
@@ -346,7 +338,6 @@ server <- function(input, output) {
       data_summaries() %>%
       pluck("sms_diff") %>%
       filter(Contact %in% data_top()$Contact) %>%
-
       ggplot() +
       aes(x = Contact) +
       geom_linerange(aes(ymin = Q1, ymax = Q3, color = `Longer Messages`)) +
@@ -357,12 +348,15 @@ server <- function(input, output) {
                  shape = 21) +
       geom_hline(aes(yintercept = 0)) +
       labs(x = NULL, color = NULL,
-           y = "Median Difference in Character Length") +
+           y = "Median Differene",
+           title = "Whose Messages Are Longer?") +
       guides(color = FALSE, fill = FALSE, size = FALSE) +
-      coord_flip() +
       scale_fill_manual(values = c(.plot_colors$me, .plot_colors$them)) +
       scale_color_manual(values = c(.plot_colors$me, .plot_colors$them)) +
-      .plot_theme
+      .plot_theme +
+      theme(panel.grid.major.x = element_blank(),
+            panel.grid.minor = element_line(linetype = 3),
+            axis.text.x = element_text(angle = -35))
 
     plot_overview_diff %>% ggplotly()
 
