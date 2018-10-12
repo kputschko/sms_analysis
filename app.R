@@ -46,8 +46,7 @@ fx_sms_app_render_dt <- function(data, yheight = 300) {
         rect = element_rect(fill = "#2a2a2b")
   )
 
-
-.plot_colors <- list(me = "#ef8a62", them = "#67a9cf")
+.plot_colors <- list(Sent = "#f8766d", Received = "#00bfc4")
 
 
 
@@ -348,11 +347,11 @@ server <- function(input, output) {
                  shape = 21) +
       geom_hline(aes(yintercept = 0)) +
       labs(x = NULL, color = NULL,
-           y = "Median Differene",
+           y = "Median Difference",
            title = "Whose Messages Are Longer?") +
       guides(color = FALSE, fill = FALSE, size = FALSE) +
-      scale_fill_manual(values = c(.plot_colors$me, .plot_colors$them)) +
-      scale_color_manual(values = c(.plot_colors$me, .plot_colors$them)) +
+      # scale_fill_manual(values = c("Mine" = .plot_colors$Sent, "Theirs" = .plot_colors$Received),
+      #                   aesthetics = c("color", "fill")) +
       .plot_theme +
       theme(panel.grid.major.x = element_blank(),
             panel.grid.minor = element_line(linetype = 3),
@@ -434,15 +433,20 @@ server <- function(input, output) {
         data_summaries() %>%
         pluck("sms_initial_hour") %>%
         filter(Contact == input$filter_contact) %>%
+        mutate(MessageType = if_else(MessageType == "Sent", "Me", "Them")) %>%
+
         ggplot() +
-        aes(x = Hour, fill = MessageType) +
-        geom_density(alpha = 0.50, color = "gray") +
+        aes(x = Hour, fill = MessageType, color = MessageType) +
+        geom_density(alpha = 0.50) +
+        labs(y = NULL, fill = NULL, color = NULL,
+             x = "Time of Day",
+             title = "Who Sends the First Message?") +
         scale_x_continuous(breaks = seq(0, 24, by = 6)) +
-        labs(y = NULL, fill = NULL, x = "Time of Day", title = "Who is More Likely to Initiate Conversation?") +
+        scale_fill_manual(values = c("Me" = .plot_colors$Sent, "Them" = .plot_colors$Received)) +
         .plot_theme +
         theme(axis.text.y = element_blank())
 
-      ggplotly(plot_initial)
+      ggplotly(plot_initial, tooltip = c("x", "y"))
 
     }
 

@@ -1,22 +1,57 @@
 
 # Set Up ------------------------------------------------------------------
 
-library(plotly)
-library(rlang)
 
-# contact_filter <- NULL
-contact_filter <- "Canyon"
-# contact_filter <- "Channel"
-contact_filter_logic <- str_glue("Contact == '{contact_filter}'")
+# |- Packages ----
+pacman::p_load(tidyverse, rlang, shiny, shinydashboard, scales, plotly, DT, tidytext)
 
-if (is_empty(contact_filter_logic)) {
-  contact_filter_rlang <- NULL
-  alpha_adj <- 0.05
-  span_adj  <- 0.01
-} else {
-  contact_filter_rlang <- parse_quos(contact_filter_logic, env = caller_env())
-  alpha_adj <- 0.40
-  span_adj  <- 0.25}
+source("R/fx_sms_read_xml.R")
+source("R/fx_sms_sumarise.R")
+source("R/fx_sms_append.R")
+source("R/fx_sms_prepare.R")
+
+test <- readRDS("C:/Users/exp01754/OneDrive/Data/sms_analysis/data/2018-08-06_master.rds")
+test_prep <- test %>% fx_sms_prepare()
+
+test_ranks <-
+  deframe(test_prep)$sms_rank %>%
+  top_n(n = 25, wt = -Rank_Score) %>%
+  arrange(Rank_Score) %>%
+  mutate(Contact = as_factor(Contact))
+
+# |- Helpers ----
+fx_sms_app_render_dt <- function(data, yheight = 300) {
+  datatable(
+    data = data,
+    rownames = FALSE,
+    extensions = c('Scroller'),
+    options = list(dom = 't',
+                   scrollY = yheight,
+                   scroller = TRUE,
+                   scrollX = TRUE))
+
+}
+
+.plot_theme <-
+  theme_minimal() +
+  theme(strip.text.y = element_text(angle = 0, face = "bold"),
+        strip.text.x = element_text(face = "bold"),
+        panel.background = element_rect(color = "gray"),
+        panel.grid.major.x = element_line(color = "gray", linetype = 3),
+        panel.grid.minor.x = element_line(color = "gray", linetype = 3),
+        legend.title.align = 0.5)
+
+
+.plot_theme_dark <-
+  .plot_theme +
+  theme(panel.grid.minor.y = element_blank(),
+        panel.grid.minor.x = element_blank(),
+        panel.grid.major.x = element_blank(),
+        panel.grid.major.y = element_line(linetype = "solid", color = "#707073"),
+        rect = element_rect(fill = "#2a2a2b")
+  )
+
+.plot_colors <- list(Sent = "#f8766d", Received = "#00bfc4")
 
 
 # Attempt 1 ---------------------------------------------------------------
@@ -272,21 +307,13 @@ test_prep <- test %>% fx_sms_prepare()
 #   top_n(n = 25, wt = -Rank_Score) %>%
 #   hchart("treemap", hcaes(x = Contact, value = !!sym(top_value), color = Rank_Score))
 
-test_ranks <-
-  deframe(test_prep)$sms_rank %>%
-  top_n(n = 25, wt = -Rank_Score) %>%
-  arrange(Rank_Score) %>%
-  mutate(Contact = as_factor(Contact))
+
 
 test_ranks %>% hchart("column", hcaes(y = Message_Count, x = Contact))
 test_ranks %>% hchart("column", hcaes(y = Length_Sum, x = Contact))
 test_ranks %>% hchart("column", hcaes(y = Length_Avg, x = Contact))
 test_ranks %>% hchart("column", hcaes(y = Contact_Days, x = Contact))
 test_ranks %>% hchart("column", hcaes(y = Messages_per_Day, x = Contact))
-
-library(plotly)
-library(scales)
-library(tidyverse)
 
 test_ranks %>%
   ggplot() +
@@ -315,7 +342,7 @@ plot_ly(data = test_ranks,
 
 # Difference --------------------------------------------------------------
 
-.plot_colors <- list(me = "#ef8a62", them = "#67a9cf")
+# .plot_colors <- list(me = "#ef8a62", them = "#67a9cf")
 
 test_plot_dif <-
   test_prep %>%
@@ -335,11 +362,19 @@ test_plot_dif <-
              shape = 21) +
   geom_hline(aes(yintercept = 0)) +
   labs(x = NULL, color = NULL,
-       y = "Median Differene",
+       y = "Median Difference",
        title = "Whose Messages Are Longer?") +
-  guides(color = FALSE, fill = FALSE, size = FALSE) +
-  scale_fill_manual(values = c(.plot_colors$me, .plot_colors$them)) +
-  scale_color_manual(values = c(.plot_colors$me, .plot_colors$them)) +
+  guides(color = FALSE, size = FALSE) +
+  # scale_color_manual(values = c("Mine" = .plot_colors$Sent, "Theirs" = .plot_colors$Recieved)) +
+  # scale_fill_manual(values = c("Mine" = .plot_colors$Sent, "Theirs" = .plot_colors$Received),
+  #                   aesthetics = c("color", "fill")) +
+
+  # scale_fill_manual(values = c(Mine = .plot_colors$Sent, Theirs = .plot_colors$Recieved)) +
+  # scale_color_manual(values = c(Mine = .plot_colors$Sent, Theirs = .plot_colors$Recieved)) +
+  # scale_fill_manual(values = .plot_colors) +
+  # scale_color_manual(values = .plot_colors) +
+  # scale_fill_manual(values = c(.plot_colors$me, .plot_colors$them)) +
+  # scale_color_manual(values = c(.plot_colors$me, .plot_colors$them)) +
   .plot_theme +
   theme(panel.grid.major.x = element_blank(),
         panel.grid.minor = element_line(linetype = 3),
@@ -351,9 +386,9 @@ test_plot_dif %>% ggplotly()
 # Length - Prop -----------------------------------------------------------
 library(tidyverse)
 test <- readRDS("C:/Users/exp01754/OneDrive/Data/sms_analysis/data/2018-08-06_master.rds")
+test_prep <- test %>% fx_sms_prepare()
 .plot_colors <- list(me = "#ef8a62", them = "#67a9cf")
 
-test_prep <- test %>% fx_sms_prepare()
 deframe(test_prep)
 
 
@@ -414,8 +449,8 @@ ggplotly(test_timeline)
 install.packages("tidytext")
 pacman::p_load(tidyverse, tidytext)
 
-test <- readRDS("C:/Users/exp01754/OneDrive/Data/sms_analysis/data/2018-08-06_master.rds")
-test_prep <- test %>% fx_sms_prepare()
+# test <- readRDS("C:/Users/exp01754/OneDrive/Data/sms_analysis/data/2018-08-06_master.rds")
+# test_prep <- test %>% fx_sms_prepare()
 
 stop_words <- get_stopwords(source = "snowball")
 
@@ -448,23 +483,25 @@ test_nlp <-
 
 # Initial -----------------------------------------------------------------
 
-install.packages("ggridges")
-library(ggridges)
+# install.packages("ggridges")
+# library(ggridges)
 
-deframe(test_prep)$sms_initial_hour
 
-test_prep[7,2][[1]][[1]] %>%
-  ungroup() %>%
-  filter(Contact == "Emily Kay Piellusch") %>%
-  select(-Contact) %>%
-  add_row(Hour = 0:23) %>%
-  complete(MessageType, Hour, fill = list(Message_Count = 0, Total_Length = 0)) %>%
-  filter(!is.na(MessageType)) %>%
-  mutate(prop = Message_Count / sum(Message_Count)) %>%
 
+# test_prep[7,2][[1]][[1]] %>%
+#   ungroup() %>%
+#   filter(Contact == "Emily Kay Piellusch") %>%
+#   select(-Contact) %>%
+#   add_row(Hour = 0:23) %>%
+#   complete(MessageType, Hour, fill = list(Message_Count = 0, Total_Length = 0)) %>%
+#   filter(!is.na(MessageType)) %>%
+#   mutate(prop = Message_Count / sum(Message_Count)) %>%
+#
   # ggplot() + aes(x = Hour, weight = prop, fill = MessageType) + geom_density(alpha = 0.80) + .plot_theme
   # ggplot() + aes(x = Hour, y = prop, color = MessageType) + geom_smooth(alpha = 0.6, span = 0.50, se = FALSE)
-  ggplot() + aes(x = Hour, y = MessageType, height = Message_Count, fill = MessageType) + geom_density_ridges(stat = "identity", alpha = 0.75)
+  # ggplot() + aes(x = Hour, y = MessageType, height = Message_Count, fill = MessageType) + geom_density_ridges(stat = "identity", alpha = 0.75)
+
+data_sms_period <- deframe(test_prep)$sms_initial_hour
 
 test_data_initial <-
   data_sms_period %>%
@@ -472,23 +509,34 @@ test_data_initial <-
   group_by(Day, Contact) %>%
   slice(1) %>%
   # filter(Contact == "Emily Kay Piellusch") %>%
-  # filter(Contact == "Mom") %>%
-  filter(Contact == "Patrick Campbell")
+  filter(Contact == "Mom") %>%
+  # filter(Contact == "Patrick Campbell") %>%
+  mutate(MessageType = if_else(MessageType == "Sent", "Me", "Them")) %>%
+  arrange(desc(MessageType))
+
 
 test_plot_initial <-
   test_data_initial %>%
   ggplot() +
-  aes(x = Hour, fill = MessageType) +
-  geom_density(alpha = 0.50, color = "gray") +
+  aes(x = Hour, fill = MessageType, color = MessageType) +
+  geom_density(alpha = 0.50) +
   .plot_theme +
-  labs(y = NULL, fill = NULL, x = NULL) +
+  labs(y = NULL, fill = NULL, x = NULL, color = NULL) +
   scale_x_continuous(breaks = seq(0, 24, by = 6)) +
+  scale_fill_manual(values = c("Me" = .plot_colors$Sent, "Them" = .plot_colors$Received)) +
   theme(axis.text.y = element_blank())
 
 
-  # test_data_initial %>%
-  # ggplot() +
-  # aes(x = Hour, y = MessageType) +
-  # geom_density_ridges()
 
-test_plot_initial %>% ggplotly()
+test_plot_initial %>% ggplotly(tooltip = c("y", "x"))
+
+
+
+# Color Test --------------------------------------------------------------
+
+tibble(label = names(.plot_colors), x = 1:4, y = 1:4) %>%
+  ggplot() +
+  aes(x = x, y = y, color = label) +
+  geom_point(size = 5) +
+  theme_minimal() +
+  scale_color_manual(values = .plot_colors)
