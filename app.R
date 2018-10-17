@@ -127,7 +127,7 @@ ui <- dashboardPage(
     tabItem(tabName = "ui_contact",
 
             fluidRow(
-              tabBox(title = "Top 25 Contacts", side = "right", width = 12, selected = "Message Count",
+              tabBox(title = strong("Top 25 Contacts"), side = "right", width = 12, selected = "Message Count",
                      tabPanel("Messages per Day", plotlyOutput("overview_bar_mpd")),
                      tabPanel("Days of Contact",  plotlyOutput("overview_bar_daycnt")),
                      tabPanel("Average Length",   plotlyOutput("overview_bar_avglen")),
@@ -150,8 +150,14 @@ ui <- dashboardPage(
             ),
 
             fluidRow(
-              box(title = NULL, width = 8,
-                  plotlyOutput("overview_plot_diff", height = 450), footer = "Size: Days of Contact")
+              box(width = 8,
+                  title = strong("Whose Messages Are Longer?"),
+                  plotlyOutput("overview_plot_diff", height = 450),
+                  footer = em("Size: Days of Contact")),
+              box(width = 4,
+                  title = strong("Changes in Message Length/Frequency in Last 90 Days"),
+                  footer = em(HTML("Q1: Increase in both length and frequency<br/>Q3: Decrease in both length and frequency")),
+                  plotlyOutput("contact_adjustment", height = 400))
 
             )
 
@@ -248,8 +254,8 @@ server <- function(input, output) {
         word(1) %>%
         str_remove("sms-")
 
-      path_export_master <- str_glue("data/test_{export_backup_date}_master.rds")
-      path_export_new    <- str_glue("data/test_{export_backup_date}_new.rds")
+      path_export_master <- str_glue("data/{export_backup_date}_master.rds")
+      path_export_new    <- str_glue("data/{export_backup_date}_new.rds")
 
       data_append() %>% write_rds(path_export_master, compress = "bz")
       data_new() %>% write_rds(path_export_new, compress = "bz")
@@ -346,12 +352,8 @@ server <- function(input, output) {
                  color = "black",
                  shape = 21) +
       geom_hline(aes(yintercept = 0)) +
-      labs(x = NULL, color = NULL,
-           y = "Median Difference",
-           title = "Whose Messages Are Longer?") +
+      labs(x = NULL, color = NULL, y = "Median Difference") +
       guides(color = FALSE, fill = FALSE, size = FALSE) +
-      # scale_fill_manual(values = c("Mine" = .plot_colors$Sent, "Theirs" = .plot_colors$Received),
-      #                   aesthetics = c("color", "fill")) +
       .plot_theme +
       theme(panel.grid.major.x = element_blank(),
             panel.grid.minor = element_line(linetype = 3),
@@ -449,6 +451,29 @@ server <- function(input, output) {
       ggplotly(plot_initial, tooltip = c("x", "y"))
 
     }
+  })
+
+
+  output$contact_adjustment <- renderPlotly({
+
+    plot_adjustment <-
+      data_summaries() %>%
+      pluck("sms_period_adjustment") %>%
+      filter(Contact %in% data_top()$Contact) %>%
+      ggplot() +
+      aes(x = change_length,
+          y = change_frequency,
+          text = str_glue("Contact: {Contact}\nLength Change: {change_length %>% number(accuracy = 0.01, suffix = 'x')}\nFrequency Change: {change_frequency %>% number(accuracy = 0.01, suffix = 'x')}")) +
+      geom_jitter(width = 0.025, height = 0.025, color = "#3182bd") +
+      geom_hline(yintercept = 1) +
+      geom_vline(xintercept = 1) +
+      labs(x = "Daily Message Length",
+           y = "Daily Contact Frequency") +
+      .plot_theme
+
+
+    plot_adjustment %>% ggplotly(tooltip = "text")
+
 
   })
 

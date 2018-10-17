@@ -107,5 +107,7 @@ fx_sms_read_xml <- function(xml_path) {
     select(-rowid, -Group) %>%
     distinct()
 
+  inform("End Import XML")
+
 
 }

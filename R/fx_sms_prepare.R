@@ -106,6 +106,27 @@ fx_sms_prepare <- function(data_master) {
     select(-contains(".Rank"))
 
 
+  # Period Adjustment -------------------------------------------------------
+  export_sms_period_adjustment <-
+    export_sms_contact_day %>%
+    ungroup() %>%
+    mutate(Period = ifelse(Day >= max(Day) - days(90), "new", "historical")) %>%
+    group_by(Contact, Period) %>%
+    summarise(day_min = min(Day),
+              day_max = max(Day),
+              day_all = difftime(day_max, day_min, units = "days") %>% parse_number() %>% ifelse(. == 0, 1, .),
+              day_contact = length(Day),
+              day_proportion = day_contact / day_all,
+              length_sum = sum(Length_Sum),
+              day_length = length_sum / day_contact) %>%
+    select(Period, Contact, day_proportion, day_length) %>%
+    gather(measure, value, day_proportion:day_length) %>%
+    unite(Label, Period, measure) %>%
+    spread(Label, value, fill = 0) %>%
+    mutate(change_length = new_day_length / historical_day_length,
+           change_frequency = new_day_proportion / historical_day_proportion)
+
+
   # Period Summary ----------------------------------------------------------
 
   # data_sms_period <-
@@ -251,4 +272,12 @@ fx_sms_prepare <- function(data_master) {
   # inform(str_glue("SMS summary data output at `data/{master_date}_summary.rds`"))
 
 }
+
+
+
+# Test --------------------------------------------------------------------
+
+data_master <- readRDS("C:/Users/exp01754/OneDrive/Data/sms_analysis/data/2018-10-15_master.rds")
+
+test_prep <- fx_sms_prepare(data_master)
 

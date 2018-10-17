@@ -2,7 +2,7 @@
 # Set Up ------------------------------------------------------------------
 
 
-# |- Packages ----
+# |- Packages
 pacman::p_load(tidyverse, rlang, shiny, shinydashboard, scales, plotly, DT, tidytext)
 
 source("R/fx_sms_read_xml.R")
@@ -10,7 +10,7 @@ source("R/fx_sms_sumarise.R")
 source("R/fx_sms_append.R")
 source("R/fx_sms_prepare.R")
 
-test <- readRDS("C:/Users/exp01754/OneDrive/Data/sms_analysis/data/2018-08-06_master.rds")
+test <- readRDS("C:/Users/exp01754/OneDrive/Data/sms_analysis/data/2018-10-15_master.rds")
 test_prep <- test %>% fx_sms_prepare()
 
 test_ranks <-
@@ -18,19 +18,6 @@ test_ranks <-
   top_n(n = 25, wt = -Rank_Score) %>%
   arrange(Rank_Score) %>%
   mutate(Contact = as_factor(Contact))
-
-# |- Helpers ----
-fx_sms_app_render_dt <- function(data, yheight = 300) {
-  datatable(
-    data = data,
-    rownames = FALSE,
-    extensions = c('Scroller'),
-    options = list(dom = 't',
-                   scrollY = yheight,
-                   scroller = TRUE,
-                   scrollX = TRUE))
-
-}
 
 .plot_theme <-
   theme_minimal() +
@@ -446,12 +433,7 @@ ggplotly(test_timeline)
 
 # Tidy Text ---------------------------------------------------------------
 
-install.packages("tidytext")
-pacman::p_load(tidyverse, tidytext)
-
-# test <- readRDS("C:/Users/exp01754/OneDrive/Data/sms_analysis/data/2018-08-06_master.rds")
-# test_prep <- test %>% fx_sms_prepare()
-
+anon <- read_csv("data/anon_id.csv")
 stop_words <- get_stopwords(source = "snowball")
 
 test_nlp <-
@@ -540,3 +522,98 @@ tibble(label = names(.plot_colors), x = 1:4, y = 1:4) %>%
   geom_point(size = 5) +
   theme_minimal() +
   scale_color_manual(values = .plot_colors)
+
+
+# Most Dramatic Change ----------------------------------------------------
+# D = number of days between first and last day of contact
+# d = number of contact days
+# p = d/D = proportion of days in contact
+
+# L = sum of message length
+# l = L / d = message length per day
+
+# compare p between [data >= prev 90 days] / [data < prev 90 days]
+
+test_changes <-
+  deframe(test_prep)$sms_contact_day %>%
+  filter(Contact %in% test_ranks$Contact) %>%
+  ungroup() %>%
+  mutate(Period = ifelse(Day >= max(Day) - days(90), "new", "historical")) %>%
+  group_by(Period, Contact) %>%
+  summarise(day_min = min(Day),
+            day_max = max(Day),
+            day_all = difftime(day_max, day_min, units = "days") %>% parse_number(),
+            day_contact = length(Day),
+            day_proportion = day_contact / day_all,
+            length_sum = sum(Length_Sum),
+            day_length = length_sum / day_contact) %>%
+  arrange(Contact) %>%
+  select(Period, Contact, day_proportion, day_length) %>%
+  gather(measure, value, day_proportion:day_length) %>%
+  unite(Label, Period, measure) %>%
+  spread(Label, value) %>%
+  replace_na(list(new_day_length = 0,
+                  new_day_proportion = 0)) %>%
+  mutate(change_length = new_day_length / historical_day_length,
+         change_frequency = new_day_proportion / historical_day_proportion) %>%
+
+  ggplot() +
+  aes(x = change_length,
+      y = change_frequency,
+      text = str_glue("Contact: {Contact}\nLength Change: {change_length %>% number(accuracy = 0.01, suffix = 'x')}\nFrequency Change: {change_frequency %>% number(accuracy = 0.01, suffix = 'x')}")) +
+  geom_jitter(width = 0.025, height = 0.025, color = "#3182bd") +
+  geom_hline(yintercept = 1) +
+  geom_vline(xintercept = 1) +
+  labs(title = "Habit Changes in Last 90 Days",
+       x = "Daily Message Length",
+       y = "Daily Contact Frequency") +
+  .plot_theme
+
+
+test_changes %>% ggplotly(tooltip = "text")
+
+test_dates <-
+  test %>%
+  mutate(Period = ifelse(DateTime >= max(DateTime) - days(90),
+                         "New", "Historical")) %>%
+  filter(Contact %in% test_ranks$Contact) %>%
+  group_by(Period, Contact) %>%
+  summarise()
+
+  print()
+
+
+  summarise(min = min(DateTime),
+            max = max(DateTime),
+            period_90 = max - days(90),
+            days = n_distinct(as_date(DateTime))) %>%
+  mutate_if(is.Date, as_date) %>%
+  print()
+
+period_old <-
+  test %>%
+  filter(Contact %in% test_ranks$Contact,
+         DateTime < test_dates$period_90) %>%
+  group_by(Contact) %>%
+  summarise(Length_Sum = sum(MessageLength),
+            Contact_Days = n_distinct(as_date(DateTime)))
+
+test_change <-
+  deframe(test_prep)$sms_contact %>%
+  select(Contact, Length_Sum, Contact_Days) %>%
+  inner_join(period_old, by = "Contact",
+             suffix = c(".overall", ".old")) %>%
+  mutate(dlen = Length_Sum.overall / Length_Sum.old,
+         dday = Contact_Days.overall / Contact_Days.old)
+
+tp <-
+  test_change %>%
+  ggplot() +
+  aes(x = dlen, y = dday, label = Contact) +
+  geom_point() +
+  scale_x_log10() +
+  scale_y_log10()
+
+
+
+
