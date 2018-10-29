@@ -61,8 +61,8 @@ ui <- dashboardPage(
   dashboardSidebar(
     sidebarMenu(
       menuItem("Message Overview",    tabName = "ui_overview", icon = icon("dashboard")),
-      menuItem("Messages By Contact", tabName = "ui_contact",   icon = icon("dashboard")),
-      menuItem("Messages Sent",       tabName = "ui_sent",      icon = icon("dashboard"))
+      menuItem("Messages By Contact", tabName = "ui_contact",  icon = icon("dashboard")),
+      menuItem("Messages Sent",       tabName = "ui_sent",     icon = icon("dashboard"))
     )
   ),
 
@@ -123,48 +123,50 @@ ui <- dashboardPage(
               )
       ),
 
-    # |- Contact ----
-    tabItem(tabName = "ui_contact",
+      # |- Contact ----
+      tabItem(tabName = "ui_contact",
 
-            fluidRow(
-              tabBox(title = strong("Top 25 Contacts"), side = "right", width = 12, selected = "Message Count",
-                     tabPanel("Messages per Day", plotlyOutput("overview_bar_mpd")),
-                     tabPanel("Days of Contact",  plotlyOutput("overview_bar_daycnt")),
-                     tabPanel("Average Length",   plotlyOutput("overview_bar_avglen")),
-                     tabPanel("Message Length",   plotlyOutput("overview_bar_length")),
-                     tabPanel("Message Count",    plotlyOutput("overview_bar_count"))
+              fluidRow(
+                tabBox(title = strong("Top 25 Contacts"), side = "right", width = 12, selected = "Message Count",
+                       tabPanel("Messages per Day", plotlyOutput("overview_bar_mpd")),
+                       tabPanel("Days of Contact",  plotlyOutput("overview_bar_daycnt")),
+                       tabPanel("Average Length",   plotlyOutput("overview_bar_avglen")),
+                       tabPanel("Message Length",   plotlyOutput("overview_bar_length")),
+                       tabPanel("Message Count",    plotlyOutput("overview_bar_count"))
+                )
+              ),
+
+              fluidRow(
+                box(width = 3,
+                    title = strong("Select Contact"),
+                    uiOutput("contact_list"),
+                    DTOutput("contact_summary")),
+
+                tabBox(width = 9,
+                       tabPanel(title = "Contact Timeline", plotlyOutput("contact_timeline")),
+                       tabPanel(title = "Initial Messages", plotlyOutput("contact_initial")),
+                       tabPanel(title = "Word Comparison")
+
+
+                )
+              ),
+
+              fluidRow(
+                box(width = 8,
+                    title = strong("Whose Messages Are Longer?"),
+                    plotlyOutput("overview_plot_diff", height = 450),
+                    footer = em("Size: Days of Contact")),
+                box(width = 4,
+                    title = strong("Changes in Message Length/Frequency in Last 90 Days"),
+                    footer = em(HTML("Q1: Increase in both length and frequency<br>Q3: Decrease in both length and frequency")),
+                    plotlyOutput("contact_adjustment", height = 400))
+
               )
-            ),
 
-            fluidRow(
-              box(width = 3,
-                  uiOutput("contact_list"),
-                  DTOutput("contact_summary")),
+      ),
 
-              tabBox(width = 9,
-                tabPanel(title = "Contact Timeline", plotlyOutput("contact_timeline")),
-                tabPanel(title = "Initial Messages", plotlyOutput("contact_initial"))
-
-
-              )
-            ),
-
-            fluidRow(
-              box(width = 8,
-                  title = strong("Whose Messages Are Longer?"),
-                  plotlyOutput("overview_plot_diff", height = 450),
-                  footer = em("Size: Days of Contact")),
-              box(width = 4,
-                  title = strong("Changes in Message Length/Frequency in Last 90 Days"),
-                  footer = em(HTML("Q1: Increase in both length and frequency<br/>Q3: Decrease in both length and frequency")),
-                  plotlyOutput("contact_adjustment", height = 400))
-
-            )
-
-    ),
-
-    # |- Sent ----
-    tabItem(tabName = "ui_sent")
+      # |- Sent ----
+      tabItem(tabName = "ui_sent")
 
     ) # close tabItems
   ) # close dashboardBody
@@ -364,15 +366,15 @@ server <- function(input, output) {
   })
 
 
-# | Contact ---------------------------------------------------------------
+  # | Contact ---------------------------------------------------------------
 
   output$contact_list <- renderUI(
     selectizeInput("filter_contact",
-                   label = "Select Contact",
+                   label = NULL,
                    selected = NULL,
                    multiple = TRUE,
                    choices = data_top()$Contact,
-                   options = list(maxItems = 1, placeholder = "NULL"))
+                   options = list(maxItems = 1, placeholder = "Top 25 Contacts"))
   )
 
 
@@ -403,23 +405,23 @@ server <- function(input, output) {
     } else {
 
 
-    plot_timeline <-
-      data_summaries() %>%
-      pluck("sms_week_contact") %>%
-      filter(Contact == input$filter_contact) %>%
-      ggplot() +
-      aes(x = Week,
-          ymin = Minimum,
-          ymax = Maximum,
-          y = Median,
-          n = Count,
-          color = Median) +
-      geom_linerange(size = 2) +
-      scale_color_viridis_c(direction = -1, option = "D", end = 1, begin = 0.30) +
-      labs(y = NULL, x = NULL, color = "Median\nMessage\nLength", title = "Range of Message Lengths") +
-      .plot_theme_dark
+      plot_timeline <-
+        data_summaries() %>%
+        pluck("sms_week_contact") %>%
+        filter(Contact == input$filter_contact) %>%
+        ggplot() +
+        aes(x = Week,
+            ymin = Minimum,
+            ymax = Maximum,
+            y = Median,
+            n = Count,
+            color = Median) +
+        geom_linerange(size = 2) +
+        scale_color_viridis_c(direction = -1, option = "D", end = 1, begin = 0.30) +
+        labs(y = NULL, x = NULL, color = "Median\nMessage\nLength", title = "Range of Message Lengths") +
+        .plot_theme_dark
 
-    ggplotly(plot_timeline)
+      ggplotly(plot_timeline)
 
     }
 
@@ -477,7 +479,7 @@ server <- function(input, output) {
 
   })
 
-# | Sent ------------------------------------------------------------------
+  # | Sent ------------------------------------------------------------------
 
 
 

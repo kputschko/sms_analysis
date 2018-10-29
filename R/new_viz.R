@@ -1,4 +1,3 @@
-
 # Set Up ------------------------------------------------------------------
 
 
@@ -436,11 +435,13 @@ ggplotly(test_timeline)
 anon <- read_csv("data/anon_id.csv")
 stop_words <- get_stopwords(source = "snowball")
 
+contact <- "Emily Kay Piellusch"
+# contact <- "Patrick Campbell"
+# contact <- "Mom"
+
 test_nlp <-
   test %>%
-  # filter(Contact == "Emily Kay Piellusch") %>%
-  # filter(Contact == "Patrick Campbell") %>%
-  # filter(Contact == "Mom") %>%
+  filter(Contact == contact) %>%
   arrange(DateTime) %>%
   rowid_to_column("Message_Number") %>%
   group_by(MessageType) %>%
@@ -461,6 +462,277 @@ test_nlp <-
   scale_color_gradient(limits = c(0, 0.001), low = "darkslategray4", high = "gray75") +
   theme(legend.position = "none")
 
+list_words <-
+  test %>%
+  filter(Contact == contact) %>%
+  arrange(DateTime) %>%
+  rowid_to_column("Message_Number") %>%
+  group_by(MessageType) %>%
+  unnest_tokens(word, Message) %>%
+  anti_join(stop_words) %>%
+  count(MessageType, word, sort = TRUE) %>%
+  mutate(proportion = n / sum(n)) %>%
+  select(-n) %>%
+  spread(MessageType, proportion) %>%
+  mutate(Difference = abs(Sent - Received)) %>%
+  print()
+
+bind_rows(list_words %>% top_n(wt = Difference, n = 200),
+          list_words %>% top_n(wt = -Difference, n = 200)) %>%
+  ggplot() +
+  geom_abline(color = "gray40", lty = 2) +
+  aes(x = Received, y = Sent, color = Difference, label = word) +
+  geom_point(alpha = 0.80, size = 3, position = position_jitter(width = 0, height = 0)) +
+  geom_text(check_overlap = TRUE, vjust = 1.5) +
+  scale_x_log10(labels = percent_format()) +
+  scale_y_log10(labels = percent_format()) +
+  scale_color_gradient(limits = c(0, 0.001), low = "darkslategray4", high = "gray75") +
+  guides(color = "none")
+
+
+list_words_2 <-
+  test %>%
+  filter(Contact == contact) %>%
+  group_by(MessageType) %>%
+  unnest_tokens(word, Message) %>%
+  anti_join(stop_words) %>%
+  count(word, MessageType) %>%
+  group_by(word) %>%
+  filter(sum(n) > 10) %>%
+  ungroup() %>%
+  mutate(test_number = map_lgl(word, ~ .x %>% as.numeric() %>% is.na())) %>%
+  filter(test_number) %>%
+  select(-test_number) %>%
+  group_by(word) %>%
+  mutate(total = sum(n)) %>%
+  ungroup() %>%
+  arrange(desc(total))
+
+list_top_bottom <-
+  bind_rows(list_words_2 %>% top_n(n = 400, wt = total),
+            list_words_2 %>% top_n(n = 100, wt = -total))
+
+list_spread <-
+  list_top_bottom %>%
+  mutate(prop = n / sum(n)) %>%
+  select(-n) %>%
+  spread(MessageType, prop, fill = 0) %>%
+  mutate(Received = ifelse(Received == min(Received), Received + sd(Received)/1000, Received),
+         Sent = ifelse(Sent == min(Sent), Sent + sd(Sent)/10000, Sent))
+
+
+list_spread %>%
+  ggplot() +
+  aes(x = Received, y = Sent, color = abs(Sent - Received), label = word) +
+  geom_point(alpha = 0.80, size = 2.5, position = position_jitter(width = 0, height = 0)) +
+  geom_abline(color = "gray40", lty = 2) +
+  geom_text(check_overlap = TRUE, vjust = 1.5) +
+  scale_x_log10(labels = percent_format()) +
+  scale_y_log10(labels = percent_format()) +
+  scale_color_gradient(limits = c(0, 0.001), low = "darkslategray4", high = "gray75") +
+  guides(color = "none")
+
+
+
+# * Sentiment Analysis ------------------------------------------------------
+# Label messages to keep them in order
+# We want sentiment per message, over time
+# Maybe sentiment per day, over time
+
+contact <- "Emily Kay Piellusch"
+# contact <- "Teresa Malmquist"
+# contact <- "Mom"
+# contact <- "Patrick Campbell"
+
+sentiment_score <- get_sentiments("afinn")
+sentiment_label <- get_sentiments("nrc")
+sentiment_bin   <- get_sentiments("bing")
+
+sentiment_base <-
+  test %>%
+  filter(Contact == contact) %>%
+  arrange(DateTime) %>%
+  rowid_to_column("Message_Number") %>%
+  group_by(MessageType) %>%
+  unnest_tokens(word, Message)
+
+sentiment_plot_label <-
+  sentiment_base %>%
+  inner_join(sentiment_label) %>%
+  count(sentiment, MessageType, sort = TRUE) %>%
+  group_by(MessageType) %>%
+  mutate(p = n / nrow(sentiment_base)) %>%
+  group_by(sentiment) %>%
+  mutate(sentiment_total = sum(n)) %>%
+  arrange(desc(sentiment_total)) %>%
+  ungroup() %>%
+  ggplot() +
+  aes(x = as_factor(sentiment), y = p, fill = MessageType) +
+  coord_flip() +
+  scale_y_continuous(labels = percent_format())
+
+# X% of words are non-neutral
+# X uses more non-neutral words
+sentiment_plot_label + geom_col()
+sentiment_plot_label + geom_col(position = "fill") + geom_hline(yintercept = 0.50)
+
+
+
+# Work in Progress
+
+sentiment_base %>%
+  ungroup() %>%
+  inner_join(sentiment_bin) %>%
+  count(Message_Number, sentiment) %>%
+  spread(sentiment, n, fill = 0) %>%
+  mutate(sentiment = positive - negative) %>%
+  ggplot() +
+  aes(x = Message_Number, y = sentiment) +
+  geom_col()
+
+sentiment_table <-
+  sentiment_base %>%
+  inner_join(sentiment_score) %>%
+  group_by(Message_Number) %>%
+  summarise(sum_score = sum(score),
+            avg_score = mean(score),
+            n_score = length(score)) %>%
+  print()
+
+sentiment_table %>%
+  ggplot() +
+  aes(x = Message_Number, y = sum_score) +
+  geom_col()
+
+
+
+# * Term Frequency ----------------------------------------------------------
+
+contact <- "Emily Kay Piellusch"
+# contact <- "Teresa Malmquist"
+# contact <- "Mom"
+# contact <- "Patrick Campbell"
+# contact <- "Jenny Nguyen"
+# contact <- "Mike"
+# contact <- "Michelle Ngo"
+# contact <- "Amanda Rae Friend"
+# contact <- "Christy McGraw"
+
+# How do I define a document?
+# - 1 Message?
+# - 1 Day?
+# - All Received?
+
+# test %>%
+#   filter(Contact == contact) %>%
+#   arrange(DateTime) %>%
+#   rowid_to_column("Message_Number") %>%
+#   group_by(MessageType) %>%
+#   unnest_tokens(word, Message) %>%
+#   group_by(MessageType, Message_Number, word) %>%
+#   summarise(term_freq = length(word)) %>%
+#   group_by(MessageType, Message_Number) %>%
+#   mutate(total_len = sum(term_freq)) %>%
+#   ungroup() %>%
+#   mutate(term_prop = term_freq / total_len)
+
+# REPLACE ALL INSTANCES OF F27BD7BB with "reddit.com"
+
+test %>%
+  filter(Contact == contact) %>%
+  mutate(Message = if_else(str_detect(Message, "f27bd7bb"), "reddit", Message)) %>%
+  mutate(Message = if_else(str_detect(Message, "open.spotify.com"), "spotify", Message)) %>%
+  mutate(Message = if_else(str_detect(Message, "youtu"), "youtube", Message)) %>%
+  arrange(DateTime) %>%
+  rowid_to_column("Message_Number") %>%
+  group_by(MessageType) %>%
+  unnest_tokens(word, Message) %>%
+  count(MessageType, word) %>%
+  bind_tf_idf(word, MessageType, n) %>%
+  group_by(MessageType) %>%
+  top_n(15, tf_idf) %>%
+  arrange(desc(tf_idf)) %>%
+  ggplot() + aes(y = tf_idf, x = as_factor(word)) +
+  geom_col() +
+  facet_wrap(vars(MessageType), scales = "free") +
+  coord_flip()
+
+
+
+# N-Gram ------------------------------------------------------------------
+
+
+stop_words_1 <- get_stopwords(source = "snowball")
+stop_words_2 <- get_stopwords(source = "stopwords-iso")
+stop_words_3 <- get_stopwords(source = "smart")
+
+sentiment_score <- get_sentiments("afinn")
+
+
+contact <- "Emily Kay Piellusch"
+# contact <- "Teresa Malmquist"
+# contact <- "Mom"
+# contact <- "Patrick Campbell"
+# contact <- "Jenny Nguyen"
+# contact <- "Mike"
+# contact <- "Michelle Ngo"
+# contact <- "Amanda Rae Friend"
+# contact <- "Christy McGraw"
+
+
+test_ngrams <-
+  test %>%
+  filter(Contact == contact) %>%
+  mutate(Message = if_else(str_detect(Message, "f27bd7bb"), "reddit", Message)) %>%
+  mutate(Message = if_else(str_detect(Message, "open.spotify.com"), "spotify", Message)) %>%
+  mutate(Message = if_else(str_detect(Message, "youtu"), "youtube", Message)) %>%
+  arrange(DateTime) %>%
+  rowid_to_column("Message_Number") %>%
+  group_by(MessageType) %>%
+  unnest_tokens(bigram, Message, token = "ngrams", n = 2) %>%
+  ungroup() %>%
+  filter(!is.na(bigram))
+
+
+test_ngrams %>%
+  count(MessageType, bigram, sort = TRUE) %>%
+  bind_tf_idf(bigram, MessageType, n) %>%
+  group_by(MessageType) %>%
+  top_n(15, tf_idf) %>%
+  arrange(MessageType, desc(tf_idf))
+
+
+test_ngrams_sep <-
+  test_ngrams %>%
+  separate(bigram, into = c("word_1", "word_2"), sep = " ") %>%
+  count(MessageType, word_1, word_2, sort = TRUE)
+
+pacman::p_load(ggraph, igraph)
+
+test_ngrams_sep %>%
+  select(-MessageType) %>%
+  # filter(n > 20, word_1 == "i") %>%
+  # filter(n > 20, word_1 == "not") %>%
+  # filter(n > 3, word_1 == "don't") %>%
+  # filter(n > 3, word_2 == "kev") %>%
+  filter(n > 3, word_1 == "maggie") %>%
+  graph_from_data_frame() %>%
+  ggraph(layout = "fr") +
+  geom_edge_link() +
+  geom_node_point() +
+  geom_node_text(aes(label = name), vjust = 1, hjust = 1)
+
+
+
+test_bigram_sentiment <-
+  test_ngrams_sep %>%
+  inner_join(sentiment_score, by = c("word_1" = "word")) %>%
+  inner_join(sentiment_score, by = c("word_2" = "word"))
+
+
+test_ngrams_sep %>% filter(word_1 == "i") %>% arrange(MessageType, -n) %>% View()
+test_ngrams_sep %>% filter(word_1 == "don't") %>% arrange(MessageType, -n) %>% View()
+test_ngrams_sep %>% filter(word_1 == "not") %>% arrange(MessageType, -n) %>% View()
 
 
 # Initial -----------------------------------------------------------------
