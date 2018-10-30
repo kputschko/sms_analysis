@@ -735,6 +735,213 @@ test_ngrams_sep %>% filter(word_1 == "don't") %>% arrange(MessageType, -n) %>% V
 test_ngrams_sep %>% filter(word_1 == "not") %>% arrange(MessageType, -n) %>% View()
 
 
+
+# LDA ---------------------------------------------------------------------
+
+pacman::p_load(tm, topicmodels)
+
+stop_words <-
+  # get_stopwords(source = "snowball") %>%
+  get_stopwords(source = "smart") %>%
+  add_row(word = c("just", "like"))
+
+test_lda <-
+  test %>%
+  ungroup() %>%
+  filter(MessageType == "Received",
+         Contact %in% test_ranks$Contact) %>%
+  mutate(Message = if_else(str_detect(Message, "f27bd7bb"), "reddit", Message)) %>%
+  mutate(Message = if_else(str_detect(Message, "open.spotify.com"), "spotify", Message)) %>%
+  mutate(Message = if_else(str_detect(Message, "youtu"), "youtube", Message)) %>%
+  arrange(DateTime) %>%
+  rowid_to_column("Message_Number") %>%
+  group_by(Contact) %>%
+  unnest_tokens(word, Message) %>%
+  anti_join(stop_words) %>%
+  count(Contact, word) %>%
+  ungroup()
+
+test_dtm <-
+  test_lda %>%
+  ungroup() %>%
+  cast_dtm(Contact, word, n)
+
+# 8 is messy, 7 is better, 6 is ok
+
+test_lda_model <- test_dtm %>% LDA(k = 7, control = list(seed = 42))
+
+test_lda_contact <- test_lda_model %>% tidy(matrix = "gamma") %>% group_by(topic)
+test_lda_terms <- test_lda_model %>% tidy(matrix = "beta") %>% group_by(topic) %>% top_n(10, beta) %>% arrange(topic, -beta)
+
+
+test_lda_terms %>%
+  ggplot() +
+  aes(x = reorder(term, beta), y = beta) +
+  geom_col() +
+  coord_flip() +
+  facet_wrap(facets = "topic", scales = "free")
+
+test_lda_contact %>%
+  ggplot() +
+  aes(x = document, y = topic, alpha = gamma, size = gamma, fill = factor(topic)) +
+  geom_point(shape = 21, color = "black") +
+  coord_flip() +
+  theme_minimal()
+
+### THIS ONE ###
+### THIS ONE ###
+### THIS ONE ###
+
+lda_order_1 <-
+  left_join(test_ranks %>% select(Contact, Rank_Score),
+            test_lda_contact %>% filter(gamma > 0.25),
+            by = c("Contact" = "document")) %>%
+  arrange(Rank_Score)
+
+lda_order_2 <-
+  lda_order_1 %>%
+  group_by(topic) %>%
+  summarise(Topic_Score = mean(Rank_Score)) %>%
+  arrange(Topic_Score) %>%
+  mutate(order_topic = sequence(n())) %>%
+  select(topic, order_topic) %>%
+  print()
+
+lda_order_3 <-
+  lda_order_2 %>%
+  left_join(lda_order_1) %>%
+  group_by(Contact) %>%
+  top_n(n = 1, wt = order_topic) %>%
+  arrange(-order_topic, -Rank_Score) %>%
+  ungroup() %>%
+  mutate(order_contact = sequence(n())) %>%
+  select(Contact, order_topic, order_contact, topic) %>%
+  print()
+
+
+lda_plot <-
+  test_lda_contact %>%
+  left_join(lda_order_3 %>% select(-topic), by = c("document" = "Contact")) %>%
+  ggplot() +
+  aes(x = document %>% reorder(order_contact),
+      y = topic %>% factor(levels = lda_order_3$topic %>% unique() %>% rev()),
+      fill = factor(topic),
+      alpha = gamma,
+      size = gamma,
+      label = document) +
+  geom_point(shape = 21, color = "black") +
+  coord_flip() +
+  labs(x = NULL, y = NULL) +
+  guides(size = "none", alpha = "none", color = "none", fill = "none") +
+  theme_minimal()
+
+lda_plot %>% ggplotly(tooltip = "label")
+
+
+# test_ranks %>%
+#   select(Contact, Rank_Score) %>%
+#   left_join(test_lda_contact, by = c("Contact" = "document")) %>%
+#   mutate(Contact_Score = gamma * Rank_Score) %>%
+#   group_by(topic) %>%
+#   summarise(Topic_Score = mean(Contact_Score)) %>%
+#   arrange(Topic_Score) %>%
+#   mutate(Topic_Label = factor(sequence(n()))) %>%
+#   left_join(test_lda_contact, by = "topic") %>%
+#   filter(gamma > 0.25) %>%
+#   arrange(desc(Topic_Label)) %>%
+#   mutate(Contact_Order = as_factor(document)) %>%
+#   right_join(test_lda_contact) %>%
+#   ggplot() +
+#   aes(x = Contact_Order,
+#       y = Topic_Label,
+#       fill = Topic_Label,
+#       alpha = gamma,
+#       size = gamma) +
+#   geom_point(shape = 21, color = "black") +
+#   coord_flip() +
+#   labs(x = NULL, y = NULL) +
+#   guides(size = "none", alpha = "none", color = "none", fill = "none") +
+#   theme_minimal()
+
+
+
+# test_lda_contact %>%
+#   # filter(gamma >= 0.25) %>%
+#   ggplot() +
+#   aes(x = factor(document, test_lda_ranks$Contact_Order %>% fct_unique()),
+#       y = factor(topic, test_lda_ranks$Topic_Order %>% fct_unique()),
+#       fill = factor(topic),
+#       alpha = gamma,
+#       size = gamma) +
+#   geom_point(shape = 21, color = "black") +
+#   coord_flip() +
+#   labs(x = NULL, y = NULL) +
+#   guides(size = "none", alpha = "none", color = "none", fill = "none") +
+#   # scale_size_continuous(range = c(4, 8), limits = c(0, 1)) +
+#   theme_minimal()
+### THIS ONE ###
+### THIS ONE ###
+### THIS ONE ###
+### THIS ONE ###
+
+
+
+# test_lda_contact %>%
+#   group_by(topic) %>%
+#   filter(gamma >= 0.25) %>%
+#   ggplot() +
+#   aes(x = document, y = gamma) +
+#   geom_col() +
+#   coord_flip() +
+#   facet_wrap(vars(topic), scales = "free")
+
+
+# pacman::p_load(vegan)
+
+
+# test_lda_contact %>%
+#   ungroup() %>%
+#   filter(topic %in% 1:2) %>%
+#   mutate(score = topic * gamma) %>%
+#   group_by(document) %>%
+#   summarise(x = mean(score)) %>%
+#   arrange(-x)
+
+
+# test_lda_contact %>%
+#   ungroup() %>%
+#   # filter(topic %in% 1:2) %>%
+#   mutate(score = topic * gamma) %>%
+#   dist() %>%
+#   cmdscale() %>%
+#   ordiplot()
+
+
+# t1 %>%
+#   ggplot(aes(x = x, y = 1, label = document)) +
+#   geom_point(position = position_jitter(height = 0.05))
+
+# tlda_s <-
+#   test_lda_contact %>%
+#   ungroup() %>%
+#   spread(topic, gamma)
+
+# asdf <-
+#   tlda_s %>%
+#   select(-document) %>%
+#   prcomp(rank. = 2) %>%
+#   pluck("x") %>%
+#   as_tibble() %>%
+#   add_column(doc = tlda_s$document) %>%
+#   ggplot() +
+#   aes(PC1, PC2, label = doc) +
+#   geom_point(position = position_jitter(width = 0.05, height = 0.05))
+#
+# asdf %>% ggplotly()
+
+
+
+
 # Initial -----------------------------------------------------------------
 
 # install.packages("ggridges")
