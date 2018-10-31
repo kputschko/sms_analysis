@@ -127,6 +127,18 @@ ui <- dashboardPage(
       tabItem(tabName = "ui_contact",
 
               fluidRow(
+                box(width = 8,
+                    title = strong("Whose Messages Are Longer?"),
+                    plotlyOutput("overview_plot_diff", height = 450),
+                    footer = em("Size: Days of Contact")),
+                box(width = 4,
+                    title = strong("Changes in Message Length/Frequency in Last 90 Days"),
+                    footer = em(HTML("Q1: Increase in both length and frequency<br>Q3: Decrease in both length and frequency")),
+                    plotlyOutput("contact_adjustment", height = 400))
+
+              ),
+
+              fluidRow(
                 tabBox(title = strong("Top 25 Contacts"), side = "right", width = 12, selected = "Message Count",
                        tabPanel("Messages per Day", plotlyOutput("overview_bar_mpd")),
                        tabPanel("Days of Contact",  plotlyOutput("overview_bar_daycnt")),
@@ -149,20 +161,7 @@ ui <- dashboardPage(
 
 
                 )
-              ),
-
-              fluidRow(
-                box(width = 8,
-                    title = strong("Whose Messages Are Longer?"),
-                    plotlyOutput("overview_plot_diff", height = 450),
-                    footer = em("Size: Days of Contact")),
-                box(width = 4,
-                    title = strong("Changes in Message Length/Frequency in Last 90 Days"),
-                    footer = em(HTML("Q1: Increase in both length and frequency<br>Q3: Decrease in both length and frequency")),
-                    plotlyOutput("contact_adjustment", height = 400))
-
               )
-
       ),
 
       # |- Sent ----

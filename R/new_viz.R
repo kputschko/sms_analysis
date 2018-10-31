@@ -534,6 +534,13 @@ list_spread %>%
 
 
 
+# Final TidyText ----------------------------------------------------------
+
+# Prepare Word Freq Plot, Term Frequency, Sentiment Analysis, Co-Occurance, LDA
+
+# Prepare unified tidytext format to handle all these requests
+
+
 # * Sentiment Analysis ------------------------------------------------------
 # Label messages to keep them in order
 # We want sentiment per message, over time
@@ -606,7 +613,7 @@ sentiment_table %>%
 
 
 
-# * Term Frequency ----------------------------------------------------------
+# * Term Importance ----------------------------------------------------------
 
 contact <- "Emily Kay Piellusch"
 # contact <- "Teresa Malmquist"
@@ -647,6 +654,7 @@ test %>%
   rowid_to_column("Message_Number") %>%
   group_by(MessageType) %>%
   unnest_tokens(word, Message) %>%
+  anti_join(stop_words) %>%
   count(MessageType, word) %>%
   bind_tf_idf(word, MessageType, n) %>%
   group_by(MessageType) %>%
@@ -736,12 +744,11 @@ test_ngrams_sep %>% filter(word_1 == "not") %>% arrange(MessageType, -n) %>% Vie
 
 
 
-# LDA ---------------------------------------------------------------------
+# * LDA ---------------------------------------------------------------------
 
 pacman::p_load(tm, topicmodels)
 
 stop_words <-
-  # get_stopwords(source = "snowball") %>%
   get_stopwords(source = "smart") %>%
   add_row(word = c("just", "like"))
 
@@ -836,6 +843,113 @@ lda_plot <-
   theme_minimal()
 
 lda_plot %>% ggplotly(tooltip = "label")
+
+
+
+# * Word Freq Plot ----------------------------------------------------------
+
+stop_words <-
+  get_stopwords(source = "smart") %>%
+  add_row(word = c("just", "like"))
+
+
+contact <- "Emily Kay Piellusch"
+# contact <- "Teresa Malmquist"
+# contact <- "Mom"
+# contact <- "Patrick Campbell"
+# contact <- "Jenny Nguyen"
+# contact <- "Mike"
+# contact <- "Michelle Ngo"
+# contact <- "Amanda Rae Friend"
+# contact <- "Christy McGraw"
+
+
+test_freq <-
+  test %>%
+  ungroup() %>%
+  filter(Contact %in% contact) %>%
+  mutate(Message = if_else(str_detect(Message, "f27bd7bb"), "reddit", Message)) %>%
+  mutate(Message = if_else(str_detect(Message, "open.spotify.com"), "spotify", Message)) %>%
+  mutate(Message = if_else(str_detect(Message, "youtu"), "youtube", Message)) %>%
+  mutate(Message = if_else(str_detect(Message, "https://m.facebook.com"), "facebook", Message)) %>%
+  arrange(DateTime) %>%
+  group_by(MessageType) %>%
+  unnest_tokens(word, Message) %>%
+  count(MessageType, word, sort = TRUE) %>%
+  mutate(freq = n / sum(n)) %>%
+  anti_join(stop_words) %>%
+  select(-n) %>%
+  spread(MessageType, freq) %>%
+  print()
+
+
+test_freq %>%
+  ggplot() +
+  aes(Received, Sent) +
+  geom_jitter(alpha = 0.1, size = 2.5, width = 0.25, height = 0.25) +
+  geom_text(aes(label = word), check_overlap = TRUE, vjust = 1.5) +
+  scale_x_log10(labels = percent_format()) +
+  scale_y_log10(labels = percent_format()) +
+  geom_abline(color = "red") +
+  .plot_theme
+
+
+
+# * Co-Occurance ------------------------------------------------------------
+
+contact <- "Emily Kay Piellusch"
+# contact <- "Teresa Malmquist"
+# contact <- "Mom"
+# contact <- "Patrick Campbell"
+# contact <- "Jenny Nguyen"
+# contact <- "Mike"
+# contact <- "Michelle Ngo"
+# contact <- "Amanda Rae Friend"
+# contact <- "Christy McGraw"
+
+test_cor <-
+  test %>%
+  ungroup() %>%
+  filter(Contact %in% contact) %>%
+  mutate(Message = if_else(str_detect(Message, "f27bd7bb"), "reddit", Message)) %>%
+  mutate(Message = if_else(str_detect(Message, "open.spotify.com"), "spotify", Message)) %>%
+  mutate(Message = if_else(str_detect(Message, "youtu"), "youtube", Message)) %>%
+  mutate(Message = if_else(str_detect(Message, "https://m.facebook.com"), "facebook", Message)) %>%
+  arrange(DateTime) %>%
+  rowid_to_column() %>%
+  group_by(MessageType) %>%
+  unnest_tokens(word, Message) %>%
+  anti_join(stop_words)
+
+
+test_cor_result <- test_cor %>% pairwise_count(word, rowid, sort = TRUE, upper = FALSE)
+
+
+# pacman::p_load(widyr)
+# library(ggplot2)
+# library(igraph)
+# library(ggraph)
+# set.seed(1234)
+
+  # filter(MessageType == "Sent") %>%
+
+test_cor_result %>%
+  filter(n > 2) %>%
+  top_n(50, n) %>%
+  ungroup() %>%
+  filter(MessageType == "Received") %>%
+  select(-MessageType) %>%
+  graph_from_data_frame() %>%
+  ggraph(layout = "fr") +
+  geom_edge_link(aes(edge_alpha = n, edge_width = n), edge_colour = "cyan4") +
+  geom_node_point(size = 5) +
+  geom_node_text(aes(label = name), repel = TRUE,
+                 point.padding = unit(0.2, "lines")) +
+  theme_void()
+
+
+
+# Old LDA -----------------------------------------------------------------
 
 
 # test_ranks %>%
