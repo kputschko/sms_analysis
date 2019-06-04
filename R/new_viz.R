@@ -2,7 +2,8 @@
 
 
 # |- Packages
-pacman::p_load(tidyverse, rlang, shiny, shinydashboard, scales, plotly, DT, tidytext)
+pacman::p_load(tidyverse, rlang, shiny, shinydashboard, scales, plotly, DT, tidytext, topicmodels, widyr,
+               igraph, ggraph)
 
 source("R/fx_sms_read_xml.R")
 source("R/fx_sms_sumarise.R")
@@ -537,8 +538,176 @@ list_spread %>%
 # Final TidyText ----------------------------------------------------------
 
 # Prepare Word Freq Plot, Term Frequency, Sentiment Analysis, Co-Occurance, LDA
-
 # Prepare unified tidytext format to handle all these requests
+
+contact <- "Emily Kay Piellusch"
+
+stop_words      <- get_stopwords(source = "smart") %>% add_row(word = c("just", "like"))
+sentiment_score <- get_sentiments("afinn")
+sentiment_label <- get_sentiments("nrc")
+sentiment_bin   <- get_sentiments("bing")
+
+
+tidy_basic <-
+  test %>%
+  filter(Contact %in% test_ranks$Contact) %>%
+  mutate(Message = if_else(str_detect(Message, "f27bd7bb"), "reddit", Message)) %>%
+  mutate(Message = if_else(str_detect(Message, "open.spotify.com"), "spotify", Message)) %>%
+  mutate(Message = if_else(str_detect(Message, "youtu"), "youtube", Message)) %>%
+  arrange(DateTime) %>%
+  rowid_to_column("Message_Number") %>%
+  group_by(Contact, MessageType) %>%
+  unnest_tokens(word, Message) %>%
+  ungroup()
+
+# Word Freq
+tidy_freq <-
+  tidy_basic %>%
+  filter(Contact %in% contact) %>%
+  count(MessageType, word, sort = TRUE) %>%
+  mutate(freq = n / sum(n)) %>%
+  anti_join(stop_words) %>%
+  select(-n) %>%
+  spread(MessageType, freq) %>%
+  ggplot() +
+  aes(Received, Sent) +
+  geom_jitter(alpha = 0.1, size = 2.5, width = 0.25, height = 0.25) +
+  geom_text(aes(label = word), check_overlap = TRUE, vjust = 1.5) +
+  scale_x_log10(labels = percent_format()) +
+  scale_y_log10(labels = percent_format()) +
+  geom_abline(color = "red") +
+  .plot_theme
+
+
+# Co-Occurance
+tidy_cor_rec <-
+  tidy_basic %>%
+  filter(Contact %in% contact) %>%
+  anti_join(stop_words) %>%
+  filter(MessageType == "Received") %>%
+  pairwise_count(word, Message_Number, sort = TRUE, upper = FALSE) %>%
+  filter(n > 2) %>%
+  top_n(50, n) %>%
+  ungroup() %>%
+  graph_from_data_frame() %>%
+  ggraph(layout = "fr") +
+  geom_edge_link(aes(edge_alpha = n, edge_width = n), edge_colour = "cyan4") +
+  geom_node_point(size = 5) +
+  geom_node_text(aes(label = name), repel = TRUE,
+                 point.padding = unit(0.2, "lines")) +
+  theme_void()
+
+tidy_cor_sen <-
+  tidy_basic %>%
+  filter(Contact %in% contact) %>%
+  anti_join(stop_words) %>%
+  filter(MessageType == "Sent") %>%
+  pairwise_count(word, Message_Number, sort = TRUE, upper = FALSE) %>%
+  filter(n > 2) %>%
+  top_n(50, n) %>%
+  ungroup() %>%
+  graph_from_data_frame() %>%
+  ggraph(layout = "fr") +
+  geom_edge_link(aes(edge_alpha = n, edge_width = n), edge_colour = "cyan4") +
+  geom_node_point(size = 5) +
+  geom_node_text(aes(label = name), repel = TRUE,
+                 point.padding = unit(0.2, "lines")) +
+  theme_void()
+
+
+# Sentiment Analysis
+tidy_sentiment <-
+  tidy_basic %>%
+  filter(Contact == contact) %>%
+  add_count(MessageType) %>%
+  inner_join(sentiment_label) %>%
+  group_by(sentiment, MessageType) %>%
+  summarise(total_words = unique(n),
+            total_sentiment = length(n),
+            p_sentiment = total_sentiment / total_words)
+
+plot_sentiment_basic <-
+  tidy_sentiment %>%
+  ggplot() +
+  aes(x = reorder(sentiment, p_sentiment, sum), y = p_sentiment, fill = MessageType) +
+  coord_flip() +
+  scale_y_continuous(labels = percent_format()) +
+  .plot_theme
+
+plot_sentiment_basic + geom_col()
+plot_sentiment_basic + geom_col(position = "fill") + geom_hline(yintercept = 0.50)
+
+
+# TF-IDF
+tidy_basic %>%
+  filter(Contact == contact) %>%
+  anti_join(stop_words) %>%
+  count(MessageType, word) %>%
+  bind_tf_idf(word, MessageType, n) %>%
+  group_by(MessageType) %>%
+  top_n(15, tf_idf) %>%
+  arrange(desc(tf_idf)) %>%
+  ggplot() + aes(y = tf_idf, x = as_factor(word)) +
+  geom_col() +
+  facet_wrap(vars(MessageType), scales = "free") +
+  coord_flip()
+
+
+# LDA Groups
+tidy_lda <-
+  tidy_basic %>%
+  filter(MessageType == "Received") %>%
+  anti_join(stop_words) %>%
+  count(Contact, word) %>%
+  cast_dtm(Contact, word, n) %>%
+  LDA(k = 7, control = list(seed = 42)) %>%
+  tidy(matrix = "gamma")
+
+lda_order_1 <-
+  left_join(test_ranks %>% select(Contact, Rank_Score),
+            tidy_lda %>% filter(gamma > 0.25),
+            by = c("Contact" = "document")) %>%
+  arrange(Rank_Score)
+
+lda_order_2 <-
+  lda_order_1 %>%
+  group_by(topic) %>%
+  summarise(Topic_Score = mean(Rank_Score)) %>%
+  arrange(Topic_Score) %>%
+  mutate(order_topic = sequence(n())) %>%
+  select(topic, order_topic) %>%
+  print()
+
+lda_order_3 <-
+  lda_order_2 %>%
+  left_join(lda_order_1) %>%
+  group_by(Contact) %>%
+  top_n(n = 1, wt = order_topic) %>%
+  arrange(-order_topic, -Rank_Score) %>%
+  ungroup() %>%
+  mutate(order_contact = sequence(n())) %>%
+  select(Contact, order_topic, order_contact, topic) %>%
+  print()
+
+
+lda_plot <-
+  tidy_lda %>%
+  left_join(lda_order_3 %>% select(-topic), by = c("document" = "Contact")) %>%
+  ggplot() +
+  aes(x = document %>% reorder(order_contact),
+      y = topic %>% factor(levels = lda_order_3$topic %>% unique() %>% rev()),
+      fill = factor(topic),
+      alpha = gamma,
+      size = gamma,
+      label = document) +
+  geom_point(shape = 21, color = "black") +
+  coord_flip() +
+  labs(x = NULL, y = NULL) +
+  guides(size = "none", alpha = "none", color = "none", fill = "none") +
+  theme_minimal()
+
+lda_plot %>% ggplotly(tooltip = "label")
+
 
 
 # * Sentiment Analysis ------------------------------------------------------
@@ -777,7 +946,7 @@ test_dtm <-
 
 test_lda_model <- test_dtm %>% LDA(k = 7, control = list(seed = 42))
 
-test_lda_contact <- test_lda_model %>% tidy(matrix = "gamma") %>% group_by(topic)
+test_lda_contact <- test_lda_model %>% tidy(matrix = "gamma")
 test_lda_terms <- test_lda_model %>% tidy(matrix = "beta") %>% group_by(topic) %>% top_n(10, beta) %>% arrange(topic, -beta)
 
 

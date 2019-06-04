@@ -5,48 +5,15 @@
 # Environment -------------------------------------------------------------
 
 # |- Packages ----
-pacman::p_load(tidyverse, rlang, shiny, shinydashboard, scales, plotly, DT)
+pacman::p_load(tidyverse, rlang, scales,
+               tidytext, topicmodels, widyr,
+               shiny, shinydashboard, plotly, DT)
 
 source("R/fx_sms_read_xml.R")
 source("R/fx_sms_sumarise.R")
 source("R/fx_sms_append.R")
 source("R/fx_sms_prepare.R")
-
-
-
-# |- Helpers ----
-fx_sms_app_render_dt <- function(data, yheight = 300) {
-  datatable(
-    data = data,
-    rownames = FALSE,
-    extensions = c('Scroller'),
-    options = list(dom = 't',
-                   scrollY = yheight,
-                   scroller = TRUE,
-                   scrollX = TRUE))
-
-}
-
-.plot_theme <-
-  theme_minimal() +
-  theme(strip.text.y = element_text(angle = 0, face = "bold"),
-        strip.text.x = element_text(face = "bold"),
-        panel.background = element_rect(color = "gray"),
-        panel.grid.major.x = element_line(color = "gray", linetype = 3),
-        panel.grid.minor.x = element_line(color = "gray", linetype = 3),
-        legend.title.align = 0.5)
-
-
-.plot_theme_dark <-
-  .plot_theme +
-  theme(panel.grid.minor.y = element_blank(),
-        panel.grid.minor.x = element_blank(),
-        panel.grid.major.x = element_blank(),
-        panel.grid.major.y = element_line(linetype = "solid", color = "#707073"),
-        rect = element_rect(fill = "#2a2a2b")
-  )
-
-.plot_colors <- list(Sent = "#f8766d", Received = "#00bfc4")
+source("R/fx_sms_helpers.R")
 
 
 
@@ -94,7 +61,7 @@ ui <- dashboardPage(
 
                 tabBox(width = 9, height = 300,
 
-                       tabPanel("Debug", textOutput("debug")),
+                       tabPanel("Debug", verbatimTextOutput("debug")),
 
                        tabPanel("Database Summary",
                                 valueBoxOutput("overview_master_contacts", width = 4),
@@ -127,18 +94,6 @@ ui <- dashboardPage(
       tabItem(tabName = "ui_contact",
 
               fluidRow(
-                box(width = 8,
-                    title = strong("Whose Messages Are Longer?"),
-                    plotlyOutput("overview_plot_diff", height = 450),
-                    footer = em("Size: Days of Contact")),
-                box(width = 4,
-                    title = strong("Changes in Message Length/Frequency in Last 90 Days"),
-                    footer = em(HTML("Q1: Increase in both length and frequency<br>Q3: Decrease in both length and frequency")),
-                    plotlyOutput("contact_adjustment", height = 400))
-
-              ),
-
-              fluidRow(
                 tabBox(title = strong("Top 25 Contacts"), side = "right", width = 12, selected = "Message Count",
                        tabPanel("Messages per Day", plotlyOutput("overview_bar_mpd")),
                        tabPanel("Days of Contact",  plotlyOutput("overview_bar_daycnt")),
@@ -157,10 +112,20 @@ ui <- dashboardPage(
                 tabBox(width = 9,
                        tabPanel(title = "Contact Timeline", plotlyOutput("contact_timeline")),
                        tabPanel(title = "Initial Messages", plotlyOutput("contact_initial")),
-                       tabPanel(title = "Word Comparison")
-
-
+                       tabPanel(title = "Word Sentiment - Frequency", plotlyOutput("contact_sentiment_freq"))
                 )
+              ),
+
+              fluidRow(
+                box(width = 8,
+                    title = strong("Whose Messages Are Longer?"),
+                    plotlyOutput("overview_plot_diff", height = 450),
+                    footer = em("Size: Days of Contact")),
+                box(width = 4,
+                    title = strong("Changes in Message Length/Frequency in Last 90 Days"),
+                    footer = em(HTML("Q1: Increase in both length and frequency<br>Q3: Decrease in both length and frequency")),
+                    plotlyOutput("contact_adjustment", height = 400))
+
               )
       ),
 
@@ -455,6 +420,33 @@ server <- function(input, output) {
   })
 
 
+  # |- Contact: Sentiment ----
+  contact_sentiment_plot <- reactive({
+    if (input$filter_contact %>% is_null()) {return(NULL)} else {
+
+      sentiment_data <-
+        data_summaries() %>%
+        pluck("sms_tidytext") %>%
+        filter(Contact == input$filter_contact) %>%
+        add_count(MessageType) %>%
+        inner_join(sentiment_label) %>%
+        group_by(sentiment, MessageType) %>%
+        summarise(total_words = unique(n),
+                  total_sentiment = length(n),
+                  p_sentiment = total_sentiment / total_words) %>%
+        ggplot() +
+        aes(x = reorder(sentiment, p_sentiment, sum), y = p_sentiment, fill = MessageType) +
+        coord_flip() +
+        scale_y_continuous(labels = percent_format()) +
+        .plot_theme
+    }
+  })
+
+  output$contact_sentiment_freq <- renderPlotly({plot_sentiment_basic + geom_col()})
+  output$contact_sentiment_prop <- renderPlotly({plot_sentiment_basic + geom_col(position = "fill") + geom_hline(yintercept = 0.50)})
+
+
+  # |- Contact: 90d Adj ----
   output$contact_adjustment <- renderPlotly({
 
     plot_adjustment <-

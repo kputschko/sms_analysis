@@ -99,7 +99,10 @@ fx_sms_read_xml <- function(xml_path) {
     left_join(data_group_key, by = "rowid")
 
 
-  data_group_fix %>%
+  inform("End Import XML")
+
+  data_output <-
+    data_group_fix %>%
     right_join(data_sms_new_clean, by = "Contact") %>%
     arrange(desc(DateTime)) %>%
     mutate(Contact = if_else(is.na(Group), Contact, Group),
@@ -107,7 +110,6 @@ fx_sms_read_xml <- function(xml_path) {
     select(-rowid, -Group) %>%
     distinct()
 
-  inform("End Import XML")
-
+  return(data_output)
 
 }

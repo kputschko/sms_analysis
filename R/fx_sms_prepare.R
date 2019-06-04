@@ -8,7 +8,7 @@ fx_sms_prepare <- function(data_master) {
 
   # Configure Environment ---------------------------------------------------
 
-  pacman::p_load(tidyverse, lubridate, rlang, scales)
+  pacman::p_load(tidyverse, lubridate, rlang, scales, tidytext)
 
   .fx_sms_summary <-
     function(data, length = "MessageLength", contact = "Contact") {
@@ -22,15 +22,6 @@ fx_sms_prepare <- function(data_master) {
                 Length_Std = sd(!!sym(length)))
 
     }
-
-
-  # Overview ----------------------------------------------------------------
-  # Is this needed?
-
-  # export_sms_overview <-
-  #   bind_rows(data_master %>% group_by(MessageType) %>% .fx_sms_summary(),
-  #             data_master %>% .fx_sms_summary() %>% mutate(MessageType = "All")) %>%
-  #   mutate_at(vars(Message_Count, Length_Sum), comma)
 
 
   # Messages by Day ---------------------------------------------------------
@@ -59,6 +50,7 @@ fx_sms_prepare <- function(data_master) {
     group_by(Week, Contact) %>%
     summarise_at("MessageLength", funs("Minimum" = min, "Maximum" = max, "Median" = median, "Count" = length))
 
+
   # Contact Summary ---------------------------------------------------------
 
   export_sms_contact <-
@@ -79,7 +71,6 @@ fx_sms_prepare <- function(data_master) {
               Length_Sum = sum(MessageLength),
               Length_Avg = mean(MessageLength))
 
-
   export_sms_contact_type <-
     data_master %>%
     group_by(Contact, MessageType) %>%
@@ -90,7 +81,6 @@ fx_sms_prepare <- function(data_master) {
               Contact_Last = max(DateTime) %>% date(),
               Contact_Days = n_distinct(date(DateTime))) %>%
     mutate(Messages_per_Day = Message_Count / Contact_Days)
-
 
 
   # Contact Rank ------------------------------------------------------------
@@ -107,6 +97,7 @@ fx_sms_prepare <- function(data_master) {
 
 
   # Period Adjustment -------------------------------------------------------
+
   export_sms_period_adjustment <-
     export_sms_contact_day %>%
     ungroup() %>%
@@ -127,77 +118,6 @@ fx_sms_prepare <- function(data_master) {
            change_frequency = new_day_proportion / historical_day_proportion)
 
 
-  # Period Summary ----------------------------------------------------------
-
-  # data_sms_period <-
-  #   data_master %>%
-  #   mutate(Hour = hour(DateTime),
-  #          Day = date(DateTime),
-  #          Weekday = wday(DateTime, label = TRUE, week_start = 1),
-  #          Week = floor_date(DateTime, unit = "week"),
-  #          Month = floor_date(DateTime, unit = "month") %>% date(),
-  #          Year = floor_date(DateTime, unit = "year") %>% year())
-
-
-  # export_data_period_day  <- data_sms_period %>% group_by(Day, MessageType) %>% .fx_sms_summary()
-  # export_data_period_contact_day  <- data_sms_period %>% group_by(Contact, Day, MessageType) %>% .fx_sms_summary()
-
-  # export_data_period_week <- data_sms_period %>% group_by(Week, MessageType) %>% .fx_sms_summary()
-  # export_data_period_contact_week <- data_sms_period %>% group_by(Contact, Week, MessageType) %>% .fx_sms_summary()
-
-  # Are these needed?
-  # export_data_period_hour <- data_sms_period %>% group_by(Hour) %>% .fx_sms_summary()
-  # export_data_period_wday <- data_sms_period %>% group_by(Weekday, Hour, MessageType) %>% .fx_sms_summary()
-  # export_data_period_month <- data_sms_period %>% group_by(Month, MessageType) %>% .fx_sms_summary()
-  # export_data_period_year <- data_sms_period %>% group_by(Year, MessageType) %>% .fx_sms_summary()
-  # export_data_period_contact_hour <- data_sms_period %>% group_by(Contact, Hour) %>% .fx_sms_summary()
-  # export_data_period_contact_wday <- data_sms_period %>% group_by(Contact, Weekday, Hour, MessageType) %>% .fx_sms_summary()
-  # export_data_period_contact_month <- data_sms_period %>% group_by(Contact, Month, MessageType) %>% .fx_sms_summary()
-  # export_data_period_contact_year <- data_sms_period %>% group_by(Contact, Year, MessageType) %>% .fx_sms_summary()
-
-
-
-  # Message Type ------------------------------------------------------------
-
-
-
-
-  # Contact Nest ----------------------------------------------------------
-  # Is this necessary?
-
-  # data_sms_nest <-
-  #   data_sms_master %>%
-  #   group_by(Contact) %>%
-  #   nest(.key = messages) %>%
-  #   mutate(daily = map(messages,
-  #                      ~ .x %>%
-  #                        mutate(DateTime = date(DateTime)) %>%
-  #                        group_by(DateTime, MessageType) %>%
-  #                        add_count() %>%
-  #                        summarise(Message_Count = unique(n),
-  #                                  Length_Sum = sum(MessageLength),
-  #                                  Length_Avg = mean(MessageLength))),
-  #          monthly = map(messages,
-  #                        ~ .x %>%
-  #                          mutate(DateTime = floor_date(DateTime, unit = "month") %>% date()) %>%
-  #                          group_by(DateTime, MessageType) %>%
-  #                          add_count() %>%
-  #                          summarise(Message_Count = unique(n),
-  #                                    Length_Sum = sum(MessageLength),
-  #                                    Length_Avg = mean(MessageLength))),
-  #          yearly = map(messages,
-  #                       ~ .x %>%
-  #                         mutate(DateTime = floor_date(DateTime, unit = "year") %>% year()) %>%
-  #                         group_by(DateTime, MessageType) %>%
-  #                         add_count() %>%
-  #                         summarise(Message_Count = unique(n),
-  #                                   Length_Sum = sum(MessageLength),
-  #                                   Length_Avg = mean(MessageLength)))
-  #   )
-
-
-
-
   # Initiate Text -----------------------------------------------------------
 
   export_sms_initial_hour <-
@@ -208,7 +128,6 @@ fx_sms_prepare <- function(data_master) {
 
 
   # Sent / Rec Difference ---------------------------------------------------
-  # Remove all group messages
 
   export_sms_diff <-
     data_sms_period %>%
@@ -226,50 +145,27 @@ fx_sms_prepare <- function(data_master) {
            `Longer Messages` = if_else(Median > 0, "Mine", "Theirs"))
 
 
-  # export_data_sms_dif_length <-
-  #   data_sms_dif %>%
-  #   select(Contact, Day, MessageType, Length_Sum) %>%
-  #   spread(MessageType, Length_Sum) %>%
-  #   replace_na(replace = list(Received = 0, Sent = 0)) %>%
-  #   mutate(Length_Difference = Received - Sent) %>%
-  #   group_by(Contact) %>%
-  #   summarise_at(.vars = vars(Length_Difference),
-  #                .funs = c(days = "length", "median", "mean", "sd", "min", "max"))
+  # Tidy Text ---------------------------------------------------------------
 
-
-  # export_data_sms_dif_length <-
-  #   data_sms_diff %>%
-  #
-  #
-  #
-  #   select(Contact, Day, MessageType, Length_Sum) %>%
-  #   spread(MessageType, Length_Sum) %>%
-  #   replace_na(replace = list(Received = 0, Sent = 0)) %>%
-  #   mutate(Length_Difference = Received - Sent) %>%
-  #   group_by(Contact) %>%
-  #   summarise(quantiles = list(quantile(Length_Difference) %>% enframe() %>% spread(name, value)),
-  #             `Days of Contact` = n()) %>%
-  #   unnest(quantiles) %>%
-  #   rename(Min = "0%", Max = "100%", Q1 = "25%", Median = "50%", Q3 = "75%")
-
+  export_sms_tidytext <-
+    data_master %>%
+    filter(Contact %in% export_sms_rank$Contact) %>%
+    mutate(Message = if_else(str_detect(Message, "f27bd7bb"), "reddit", Message)) %>%
+    mutate(Message = if_else(str_detect(Message, "open.spotify.com"), "spotify", Message)) %>%
+    mutate(Message = if_else(str_detect(Message, "youtu"), "youtube", Message)) %>%
+    arrange(DateTime) %>%
+    rowid_to_column("Message_Number") %>%
+    group_by(Contact, MessageType) %>%
+    unnest_tokens(word, Message) %>%
+    ungroup()
 
 
   # Export Data -------------------------------------------------------------
 
-    ls(pattern = "export_") %>%
+  ls(pattern = "export_") %>%
     mget(inherits = TRUE) %>%
     enframe() %>%
     mutate(name = str_remove(name, "export_"))
-
-
-  # write_rds(.export,
-  #           str_glue("data/{master_date}_summary.rds"),
-  #           compress = "bz")
-
-
-  # End Function ------------------------------------------------------------
-
-  # inform(str_glue("SMS summary data output at `data/{master_date}_summary.rds`"))
 
 }
 
@@ -277,7 +173,6 @@ fx_sms_prepare <- function(data_master) {
 
 # Test --------------------------------------------------------------------
 
-data_master <- readRDS("C:/Users/exp01754/OneDrive/Data/sms_analysis/data/2018-10-15_master.rds")
-
-test_prep <- fx_sms_prepare(data_master)
+# data_master <- readRDS("C:/Users/exp01754/OneDrive/Data/sms_analysis/data/2018-10-15_master.rds")
+# test_prep <- fx_sms_prepare(data_master)
 
